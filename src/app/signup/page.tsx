@@ -59,7 +59,10 @@ export default function SignUpPage() {
         description: 'Please sign in with your new account',
       });
 
-      router.push('/login');
+      setTimeout(() => {
+        router.push('/login?registered=true');
+        router.refresh();
+      }, 1000);
     } catch (error) {
       toast({
         variant: 'destructive',
