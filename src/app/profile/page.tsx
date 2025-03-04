@@ -58,14 +58,27 @@ type PreferencesFormValues = z.infer<typeof preferencesSchema>;
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ProfileContent />
-    </Suspense>
+    <div className="min-h-screen">
+      <Suspense fallback={<LoadingUI />}>
+        <ProfileContent />
+      </Suspense>
+    </div>
+  );
+}
+
+function LoadingUI() {
+  return (
+    <div className="container mx-auto py-10 flex items-center justify-center min-h-screen">
+      <div className="text-center space-y-4">
+        <div className="animate-spin text-4xl">⏳</div>
+        <p className="text-muted-foreground">Loading your profile...</p>
+      </div>
+    </div>
   );
 }
 
 function ProfileContent() {
-  const { data: session, status } = useSession();
+  const session = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState<{
     profile: boolean;
@@ -78,13 +91,15 @@ function ProfileContent() {
   });
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (session.status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [status, router]);
+  }, [session.status, router]);
 
   useEffect(() => {
     async function loadProfileData() {
+      if (!session.data?.user) return;
+      
       try {
         const response = await fetch('/api/user/profile', {
           credentials: 'include',
@@ -107,6 +122,8 @@ function ProfileContent() {
     }
 
     async function loadPreferences() {
+      if (!session.data?.user) return;
+
       try {
         const response = await fetch('/api/user/preferences', {
           credentials: 'include',
@@ -130,24 +147,17 @@ function ProfileContent() {
       }
     }
 
-    if (status === 'authenticated') {
+    if (session.status === 'authenticated' && session.data?.user) {
       loadProfileData();
       loadPreferences();
     }
-  }, [status]);
+  }, [session.status, session.data]);
 
-  if (status === 'loading' || isLoading.initial) {
-    return (
-      <div className="container mx-auto py-10 flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <div className="animate-spin text-4xl">⏳</div>
-          <p className="text-muted-foreground">Loading your profile...</p>
-        </div>
-      </div>
-    );
+  if (session.status === 'loading' || isLoading.initial) {
+    return <LoadingUI />;
   }
 
-  if (status === 'unauthenticated') {
+  if (session.status === 'unauthenticated') {
     return null;
   }
 
