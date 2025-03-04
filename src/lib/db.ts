@@ -10,9 +10,6 @@ interface PostgresError extends Error {
   code?: string;
 }
 
-// Export sql for raw queries
-export { sql };
-
 export async function createUser({ 
   name, 
   email, 
