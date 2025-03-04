@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -57,8 +57,16 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 type PreferencesFormValues = z.infer<typeof preferencesSchema>;
 
 export default function ProfilePage() {
-  const router = useRouter();
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ProfileContent />
+    </Suspense>
+  );
+}
+
+function ProfileContent() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState<{
     profile: boolean;
     preferences: boolean;
@@ -69,14 +77,12 @@ export default function ProfilePage() {
     initial: true,
   });
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
     }
   }, [status, router]);
 
-  // Load initial profile data
   useEffect(() => {
     async function loadProfileData() {
       try {
@@ -130,7 +136,6 @@ export default function ProfilePage() {
     }
   }, [status]);
 
-  // Show loading state while checking authentication
   if (status === 'loading' || isLoading.initial) {
     return (
       <div className="container mx-auto py-10 flex items-center justify-center min-h-screen">
@@ -142,9 +147,8 @@ export default function ProfilePage() {
     );
   }
 
-  // Show error if not authenticated
   if (status === 'unauthenticated') {
-    return null; // Will redirect in useEffect
+    return null;
   }
 
   const profileForm = useForm<ProfileFormValues>({
@@ -177,7 +181,7 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
-        credentials: 'include', // Include cookies for auth
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -193,7 +197,6 @@ export default function ProfilePage() {
         variant: 'default',
       });
 
-      // Refresh the page data
       router.refresh();
     } catch (error) {
       console.error('Profile update error:', error);
@@ -217,7 +220,7 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
-        credentials: 'include', // Include cookies for auth
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -233,7 +236,6 @@ export default function ProfilePage() {
         variant: 'default',
       });
 
-      // Refresh the page data
       router.refresh();
     } catch (error) {
       console.error('Preferences update error:', error);
