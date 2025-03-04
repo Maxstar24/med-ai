@@ -56,6 +56,22 @@ const preferencesSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type PreferencesFormValues = z.infer<typeof preferencesSchema>;
 
+const defaultProfileValues = {
+  name: '',
+  email: '',
+  specialization: '',
+  yearOfStudy: '',
+  institution: '',
+  bio: '',
+};
+
+const defaultPreferencesValues = {
+  studyReminders: true,
+  emailNotifications: true,
+  darkMode: true,
+  language: 'en',
+};
+
 export default function ProfilePage() {
   return (
     <div className="min-h-screen">
@@ -80,14 +96,20 @@ function LoadingUI() {
 function ProfileContent() {
   const session = useSession();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState<{
-    profile: boolean;
-    preferences: boolean;
-    initial: boolean;
-  }>({
+  const [isLoading, setIsLoading] = useState({
     profile: false,
     preferences: false,
     initial: true,
+  });
+
+  const profileForm = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: defaultProfileValues,
+  });
+
+  const preferencesForm = useForm<PreferencesFormValues>({
+    resolver: zodResolver(preferencesSchema),
+    defaultValues: defaultPreferencesValues,
   });
 
   useEffect(() => {
@@ -97,61 +119,39 @@ function ProfileContent() {
   }, [session.status, router]);
 
   useEffect(() => {
-    async function loadProfileData() {
-      if (!session.data?.user) return;
-      
-      try {
-        const response = await fetch('/api/user/profile', {
-          credentials: 'include',
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to load profile data');
-        }
+    if (!session.data?.user) return;
 
-        const data = await response.json();
-        profileForm.reset(data);
+    async function loadData() {
+      try {
+        const [profileRes, prefsRes] = await Promise.all([
+          fetch('/api/user/profile', { credentials: 'include' }),
+          fetch('/api/user/preferences', { credentials: 'include' }),
+        ]);
+
+        if (!profileRes.ok) throw new Error('Failed to load profile');
+        if (!prefsRes.ok) throw new Error('Failed to load preferences');
+
+        const [profileData, prefsData] = await Promise.all([
+          profileRes.json(),
+          prefsRes.json(),
+        ]);
+
+        profileForm.reset(profileData);
+        preferencesForm.reset(prefsData);
       } catch (error) {
-        console.error('Error loading profile:', error);
+        console.error('Error loading data:', error);
         toast({
           variant: 'destructive',
-          title: 'Error loading profile',
+          title: 'Error loading data',
           description: 'Failed to load your profile data. Please refresh the page.',
-        });
-      }
-    }
-
-    async function loadPreferences() {
-      if (!session.data?.user) return;
-
-      try {
-        const response = await fetch('/api/user/preferences', {
-          credentials: 'include',
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to load preferences');
-        }
-
-        const data = await response.json();
-        preferencesForm.reset(data);
-      } catch (error) {
-        console.error('Error loading preferences:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Error loading preferences',
-          description: 'Failed to load your preferences. Please refresh the page.',
         });
       } finally {
         setIsLoading(prev => ({ ...prev, initial: false }));
       }
     }
 
-    if (session.status === 'authenticated' && session.data?.user) {
-      loadProfileData();
-      loadPreferences();
-    }
-  }, [session.status, session.data]);
+    loadData();
+  }, [session.data?.user]);
 
   if (session.status === 'loading' || isLoading.initial) {
     return <LoadingUI />;
@@ -160,28 +160,6 @@ function ProfileContent() {
   if (session.status === 'unauthenticated') {
     return null;
   }
-
-  const profileForm = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      specialization: '',
-      yearOfStudy: '',
-      institution: '',
-      bio: '',
-    },
-  });
-
-  const preferencesForm = useForm<PreferencesFormValues>({
-    resolver: zodResolver(preferencesSchema),
-    defaultValues: {
-      studyReminders: true,
-      emailNotifications: true,
-      darkMode: true,
-      language: 'en',
-    },
-  });
 
   async function onProfileSubmit(values: ProfileFormValues) {
     try {
