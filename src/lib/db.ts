@@ -1,6 +1,9 @@
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcrypt';
 
+// Export sql for raw queries
+export { sql };
+
 export async function createUser({ 
   name, 
   email, 
