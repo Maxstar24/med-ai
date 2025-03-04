@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { SessionProvider } from "next-auth/react";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from '@/components/ui/toaster';
+import AuthProvider from "@/components/providers/session-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,10 +23,10 @@ export default function RootLayout({
         inter.className,
         "min-h-screen bg-black text-slate-50 antialiased"
       )}>
-        <SessionProvider>
+        <AuthProvider>
           {children}
           <Toaster />
-        </SessionProvider>
+        </AuthProvider>
       </body>
     </html>
   );

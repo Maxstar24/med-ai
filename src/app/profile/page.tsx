@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { redirect } from 'next/navigation';
 
 const profileSchema = z.object({
   name: z.string()
@@ -73,6 +74,16 @@ const defaultPreferencesValues = {
 };
 
 export default function ProfilePage() {
+  const session = useSession();
+
+  if (session.status === 'loading') {
+    return <LoadingUI />;
+  }
+
+  if (session.status === 'unauthenticated') {
+    redirect('/login');
+  }
+
   return (
     <div className="min-h-screen">
       <Suspense fallback={<LoadingUI />}>
@@ -111,12 +122,6 @@ function ProfileContent() {
     resolver: zodResolver(preferencesSchema),
     defaultValues: defaultPreferencesValues,
   });
-
-  useEffect(() => {
-    if (session.status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [session.status, router]);
 
   useEffect(() => {
     if (!session.data?.user) return;
