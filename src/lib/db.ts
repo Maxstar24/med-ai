@@ -1,10 +1,19 @@
 import { createClient } from '@vercel/postgres';
 import bcrypt from 'bcrypt';
 
-// Create a client instance
+// Create a client instance that connects immediately
 const db = createClient({
-  connectionString: process.env.POSTGRES_URL // Using pooled connection for better performance
+  connectionString: process.env.POSTGRES_URL_NON_POOLING // Using non-pooling for more reliable connections
 });
+
+// Connect immediately
+try {
+  await db.connect();
+  console.log('Database connected successfully');
+} catch (error) {
+  console.error('Failed to connect to database:', error);
+  throw new Error('Database connection failed');
+}
 
 interface PostgresError extends Error {
   code?: string;
