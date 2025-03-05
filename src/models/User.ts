@@ -19,51 +19,47 @@ const ProfileSchema = new mongoose.Schema({
       message: '{VALUE} is not a valid gender option'
     }
   },
-  medicalHistory: [{
-    condition: {
+  education: {
+    level: {
       type: String,
-      required: [true, 'Condition name is required'],
-      trim: true
-    },
-    diagnosedDate: {
-      type: Date,
-      required: [true, 'Diagnosis date is required'],
-      validate: {
-        validator: function(v: Date) {
-          return v <= new Date();
-        },
-        message: 'Diagnosis date cannot be in the future'
+      enum: {
+        values: ['high_school', 'undergraduate', 'graduate', 'phd', 'other'],
+        message: '{VALUE} is not a valid education level'
       }
     },
-    medications: [{
+    field: {
       type: String,
       trim: true
-    }],
-    notes: {
+    },
+    institution: {
       type: String,
-      maxlength: [1000, 'Notes cannot be longer than 1000 characters']
+      trim: true
+    },
+    graduationYear: {
+      type: Number,
+      min: [1900, 'Year must be after 1900'],
+      max: [2100, 'Year must be before 2100']
     }
-  }],
-  allergies: [{
+  },
+  interests: [{
     type: String,
     trim: true
   }],
-  emergencyContact: {
-    name: {
+  bio: {
+    type: String,
+    maxlength: [500, 'Bio cannot be longer than 500 characters'],
+    trim: true
+  },
+  socialLinks: {
+    linkedin: {
       type: String,
-      required: [true, 'Emergency contact name is required'],
       trim: true,
-      maxlength: [100, 'Name cannot be longer than 100 characters']
+      match: [/^https?:\/\/[\w\-]+(\.[\w\-]+)+[/#?]?.*$/, 'Please provide a valid URL']
     },
-    relationship: {
+    github: {
       type: String,
-      required: [true, 'Relationship is required'],
-      trim: true
-    },
-    phone: {
-      type: String,
-      required: [true, 'Phone number is required'],
-      match: [/^\+?[\d\s-()]{8,}$/, 'Please provide a valid phone number']
+      trim: true,
+      match: [/^https?:\/\/[\w\-]+(\.[\w\-]+)+[/#?]?.*$/, 'Please provide a valid URL']
     }
   },
   createdAt: { type: Date, default: Date.now },
