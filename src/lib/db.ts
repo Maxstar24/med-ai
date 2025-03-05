@@ -1,22 +1,31 @@
 import { createClient } from '@vercel/postgres';
 import bcrypt from 'bcrypt';
 
-// Create a client instance
+// Create a client instance with pooling
 const db = createClient({
-  connectionString: process.env.POSTGRES_URL_NON_POOLING,
+  connectionString: process.env.POSTGRES_URL, // Use pooled connection
   ssl: {
     rejectUnauthorized: true
   }
 });
 
-// Function to ensure database connection
-async function ensureConnection() {
-  try {
-    await db.sql`SELECT 1`; // Simple query to test connection
-    console.log('Database connection verified');
-  } catch (error) {
-    console.error('Database connection error:', error);
-    throw new Error('Failed to connect to database');
+// Function to ensure database connection with retries
+async function ensureConnection(retries = 3, delay = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`Attempting database connection (attempt ${i + 1}/${retries})...`);
+      await db.sql`SELECT 1`; // Simple query to test connection
+      console.log('Database connection verified');
+      return;
+    } catch (error) {
+      console.error(`Database connection attempt ${i + 1} failed:`, error);
+      if (i < retries - 1) {
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw new Error('Failed to connect to database after multiple attempts');
+      }
+    }
   }
 }
 
