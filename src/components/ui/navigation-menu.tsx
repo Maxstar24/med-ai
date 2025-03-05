@@ -7,6 +7,7 @@ import { ChevronDownIcon } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "./button"
+import { useSession, signOut } from "next-auth/react"
 
 function NavigationMenu({
   className,
@@ -187,52 +188,84 @@ const components: { title: string; href: string; description: string }[] = [
 ]
 
 export function MainNav() {
+  const { data: session } = useSession();
+
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 border-b border-slate-800 bg-black/50 backdrop-blur-xl">
-      <div className="container flex h-16 items-center">
-        <NavigationMenu>
-          <NavigationMenuList>
+    <NavigationMenu className="p-4 border-b">
+      <NavigationMenuList>
+        <NavigationMenuItem>
+          <Link href="/" legacyBehavior passHref>
+            <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+              Home
+            </NavigationMenuLink>
+          </Link>
+        </NavigationMenuItem>
+
+        {session ? (
+          <>
             <NavigationMenuItem>
-              <Link href="/" legacyBehavior passHref>
+              <Link href="/dashboard" legacyBehavior passHref>
                 <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                  <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
-                    MedAI
-                  </span>
+                  Dashboard
                 </NavigationMenuLink>
               </Link>
             </NavigationMenuItem>
+
             <NavigationMenuItem>
-              <NavigationMenuTrigger>Features</NavigationMenuTrigger>
-              <NavigationMenuContent>
-                <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px] bg-slate-950/95 backdrop-blur-xl border border-slate-800 rounded-xl">
-                  {components.map((component) => (
-                    <ListItem
-                      key={component.title}
-                      title={component.title}
-                      href={component.href}
-                    >
-                      {component.description}
-                    </ListItem>
-                  ))}
-                </ul>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-            <NavigationMenuItem>
-              <Link href="/about" legacyBehavior passHref>
+              <Link href="/ai-learning" legacyBehavior passHref>
                 <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                  About
+                  AI Learning
                 </NavigationMenuLink>
               </Link>
             </NavigationMenuItem>
-          </NavigationMenuList>
-        </NavigationMenu>
-        <div className="ml-auto flex items-center space-x-4">
-          <Button variant="ghost">Log in</Button>
-          <Button>Sign up</Button>
-        </div>
-      </div>
-    </div>
-  )
+
+            <NavigationMenuItem>
+              <Link href="/quizzes" legacyBehavior passHref>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                  Quizzes
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+
+            <NavigationMenuItem>
+              <Link href="/quizzes/history" legacyBehavior passHref>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                  Quiz History
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+
+            <NavigationMenuItem>
+              <button
+                onClick={() => signOut()}
+                className={navigationMenuTriggerStyle()}
+              >
+                Sign Out
+              </button>
+            </NavigationMenuItem>
+          </>
+        ) : (
+          <>
+            <NavigationMenuItem>
+              <Link href="/login" legacyBehavior passHref>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                  Login
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+
+            <NavigationMenuItem>
+              <Link href="/signup" legacyBehavior passHref>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                  Sign Up
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+          </>
+        )}
+      </NavigationMenuList>
+    </NavigationMenu>
+  );
 }
 
 const ListItem = React.forwardRef<

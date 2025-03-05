@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { createUser, getUserByEmail } from "@/lib/db";
 import { z } from "zod";
+import bcrypt from "bcrypt";
+import clientPromise from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 
 const signupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -13,8 +15,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validatedData = signupSchema.parse(body);
 
+    const client = await clientPromise;
+    const db = client.db('med-ai');
+
     // Check if user already exists
-    const existingUser = await getUserByEmail(validatedData.email);
+    const existingUser = await db.collection('users').findOne({ 
+      email: validatedData.email 
+    });
+
     if (existingUser) {
       return NextResponse.json(
         { error: "User with this email already exists" },
@@ -22,16 +30,25 @@ export async function POST(request: Request) {
       );
     }
 
+    // Hash password
+    const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+
     // Create new user
-    const user = await createUser(validatedData);
+    const result = await db.collection('users').insertOne({
+      name: validatedData.name,
+      email: validatedData.email,
+      password: hashedPassword,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
 
     return NextResponse.json(
       { 
         message: "User created successfully",
         user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
+          id: result.insertedId.toString(),
+          name: validatedData.name,
+          email: validatedData.email,
         }
       },
       { status: 201 }

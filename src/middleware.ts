@@ -3,7 +3,18 @@ import { NextResponse } from "next/server";
 
 export default withAuth(
   function middleware(req) {
-    // Add custom middleware logic here if needed
+    // Handle callback URLs in development
+    if (process.env.NODE_ENV === 'development') {
+      const callbackUrl = req.nextUrl.searchParams.get('callbackUrl');
+      if (callbackUrl?.includes('med-ai-app.ondigitalocean.app')) {
+        const url = req.nextUrl.clone();
+        url.searchParams.set(
+          'callbackUrl', 
+          callbackUrl.replace('https://med-ai-app.ondigitalocean.app', 'http://localhost:3000')
+        );
+        return NextResponse.redirect(url);
+      }
+    }
     return NextResponse.next();
   },
   {

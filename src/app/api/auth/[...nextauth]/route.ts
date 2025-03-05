@@ -1,8 +1,8 @@
 import NextAuth from "next-auth";
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { sql } from "@vercel/postgres";
 import bcrypt from "bcrypt";
+import clientPromise from "@/lib/mongodb";
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -18,11 +18,11 @@ export const authOptions: AuthOptions = {
         }
 
         try {
-          const result = await sql`
-            SELECT * FROM users WHERE email=${credentials.email}
-          `;
-
-          const user = result.rows[0];
+          const client = await clientPromise;
+          const db = client.db('med-ai');
+          const user = await db.collection('users').findOne({ 
+            email: credentials.email 
+          });
 
           if (!user) {
             throw new Error('No user found with this email');
@@ -38,7 +38,7 @@ export const authOptions: AuthOptions = {
           }
 
           return {
-            id: user.id,
+            id: user._id.toString(),
             name: user.name,
             email: user.email,
           };
@@ -75,6 +75,10 @@ export const authOptions: AuthOptions = {
     strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET,
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  ...(process.env.NODE_ENV === 'development' && {
+    url: process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  })
 };
 
 const handler = NextAuth(authOptions);

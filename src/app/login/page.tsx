@@ -43,16 +43,23 @@ function LoginContent() {
     setLoading(true);
 
     try {
+      const callbackUrl = searchParams.get("callbackUrl");
+      // In development, replace DigitalOcean URL with localhost
+      const finalCallbackUrl = process.env.NODE_ENV === 'development' 
+        ? callbackUrl?.replace('https://med-ai-app.ondigitalocean.app', 'http://localhost:3000') 
+        : callbackUrl;
+
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
         redirect: false,
+        callbackUrl: finalCallbackUrl || '/dashboard'
       });
 
       if (result?.error) {
         setError(result.error);
       } else {
-        router.push("/ai-learning");
+        router.push(finalCallbackUrl || '/dashboard');
         router.refresh();
       }
     } catch (err) {

@@ -1,40 +1,27 @@
 'use client';
 
-import { MainNav } from "@/components/ui/navigation-menu";
-import { motion } from "framer-motion";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Brain, BookOpen, Sparkles, MessageSquare, Database, Stethoscope, ArrowRight, Lock } from "lucide-react";
-import { useState } from "react";
-import Link from "next/link";
-
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5 }
-};
-
-const features = [
-  {
-    title: "Medical Knowledge Base",
-    description: "Access comprehensive medical information from trusted sources",
-    icon: Database,
-    delay: 0.2
-  },
-  {
-    title: "Clinical Guidelines",
-    description: "Get up-to-date clinical guidelines and treatment protocols",
-    icon: Stethoscope,
-    delay: 0.3
-  },
-  {
-    title: "Interactive Learning",
-    description: "Engage in dynamic conversations about medical concepts",
-    icon: MessageSquare,
-    delay: 0.4
-  }
-];
+import { useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { redirect } from 'next/navigation';
+import { MainNav } from '@/components/ui/navigation-menu';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Brain,
+  Send,
+  BookOpen,
+  MessageSquare,
+  Stethoscope,
+  Database,
+  ArrowRight,
+  Search,
+  Clock,
+  Star
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { queryAI, formatMedicalPrompt } from '@/lib/ai';
 
 const exampleQueries = [
   "Explain the pathophysiology of Type 2 Diabetes",
@@ -43,199 +30,261 @@ const exampleQueries = [
   "What are the clinical features of Kawasaki disease?"
 ];
 
-const demoResponses = [
+const caseStudies = [
   {
-    question: "What are the key differences between systolic and diastolic heart failure?",
-    answer: "Systolic heart failure occurs when the heart muscle can't contract with enough force, leading to reduced ejection fraction. Diastolic heart failure happens when the heart can't properly fill with blood due to stiff ventricles. Want to learn more? Sign in to explore detailed explanations and clinical cases.",
+    title: "Acute Coronary Syndrome",
+    description: "58-year-old male presents with chest pain and shortness of breath",
+    difficulty: "Intermediate",
+    time: "15 mins",
+    rating: 4.8
   },
   {
-    question: "Explain the pathophysiology of Type 2 Diabetes",
-    answer: "Type 2 Diabetes involves insulin resistance and decreased insulin production. This leads to impaired glucose uptake and elevated blood sugar levels. Sign in to access comprehensive explanations with visual aids and clinical correlations.",
+    title: "Pediatric Fever",
+    description: "3-year-old presents with high fever and rash",
+    difficulty: "Beginner",
+    time: "10 mins",
+    rating: 4.5
+  },
+  {
+    title: "Neurological Assessment",
+    description: "45-year-old with sudden onset weakness",
+    difficulty: "Advanced",
+    time: "20 mins",
+    rating: 4.9
   }
 ];
 
-export default function AILearning() {
-  const [query, setQuery] = useState("");
-  const [showPreview, setShowPreview] = useState(false);
-  const [selectedDemo, setSelectedDemo] = useState(0);
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
-  const handleAskDemo = () => {
-    if (query === demoResponses[0].question) {
-      setSelectedDemo(0);
-      setShowPreview(true);
-    } else if (query === demoResponses[1].question) {
-      setSelectedDemo(1);
-      setShowPreview(true);
+export default function AILearningPage() {
+  const { data: session, status } = useSession();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
+
+  if (status === 'loading') {
+    return <div>Loading...</div>;
+  }
+
+  if (status === 'unauthenticated') {
+    redirect('/login');
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim()) return;
+
+    const newMessage: Message = { role: 'user', content: inputValue };
+    setMessages(prev => [...prev, newMessage]);
+    setInputValue('');
+    setIsLoading(true);
+
+    try {
+      const prompt = formatMedicalPrompt(inputValue);
+      const response = await queryAI({
+        message: prompt,
+        temperature: 0.7,
+        maxTokens: 1000,
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      setMessages(prev => [...prev, { role: 'assistant', content: response.message }]);
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'I apologize, but I encountered an error processing your request. Please try again.'
+      }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-black">
       <MainNav />
-      <main className="flex min-h-screen flex-col">
-        {/* Hero Section */}
-        <section className="relative overflow-hidden px-6 pt-36 md:px-8 md:pt-44">
-          <div className="mx-auto max-w-7xl">
-            <motion.div
-              initial="initial"
-              animate="animate"
-              variants={fadeIn}
-              className="text-center"
-            >
-              <motion.div className="relative inline-block">
-                <motion.h1
-                  className="text-4xl font-bold tracking-tight sm:text-6xl md:text-7xl relative z-10"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                >
-                  AI Learning
-                  <span className="bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
-                    {" "}Assistant
-                  </span>
-                </motion.h1>
-                <div className="absolute -inset-4 bg-blue-500/20 blur-3xl rounded-full z-0" />
-              </motion.div>
-              <motion.p
-                className="mt-6 text-lg leading-8 text-gray-300 max-w-3xl mx-auto"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
-                Your personal AI tutor for medical education. Ask questions, explore concepts,
-                and deepen your understanding of medicine through interactive conversations.
-              </motion.p>
-            </motion.div>
-          </div>
-        </section>
+      <main className="container pt-24 pb-8">
+        <div className="max-w-6xl mx-auto">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">AI Learning Assistant</h1>
+                <p className="text-slate-400">Your personal medical knowledge companion</p>
+              </div>
+              <TabsList className="bg-slate-900/50">
+                <TabsTrigger value="chat" className="data-[state=active]:bg-blue-500">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Chat
+                </TabsTrigger>
+                <TabsTrigger value="cases" className="data-[state=active]:bg-blue-500">
+                  <Stethoscope className="w-4 h-4 mr-2" />
+                  Cases
+                </TabsTrigger>
+                <TabsTrigger value="knowledge" className="data-[state=active]:bg-blue-500">
+                  <Database className="w-4 h-4 mr-2" />
+                  Knowledge Base
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-        {/* Chat Interface */}
-        <section className="mx-auto max-w-4xl w-full px-6 py-12">
-          <Card className="relative border-slate-800 bg-slate-950/50 p-6">
-            <div className="flex flex-col space-y-4">
-              <div className="min-h-[300px] rounded-lg border border-slate-800 bg-slate-900/50 p-4">
-                {!showPreview ? (
-                  <div className="flex items-center justify-center h-full text-gray-400">
-                    <div className="text-center">
-                      <Brain className="h-12 w-12 mx-auto mb-4 text-blue-500" />
-                      <p>Try our demo questions below!</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex gap-3 items-start">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10">
-                        <Brain className="h-4 w-4 text-blue-500" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-400">Question</p>
-                        <p className="mt-1">{demoResponses[selectedDemo].question}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 items-start">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800">
-                        <MessageSquare className="h-4 w-4 text-blue-500" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-400">Answer</p>
-                        <p className="mt-1">{demoResponses[selectedDemo].answer}</p>
+            <TabsContent value="chat" className="space-y-4">
+              {/* Chat Messages */}
+              <Card className="p-6 border-slate-800 bg-slate-900/50 min-h-[400px] flex flex-col">
+                <div className="flex-1 space-y-4 mb-4">
+                  {messages.length === 0 ? (
+                    <div className="text-center text-slate-400 mt-8">
+                      <Brain className="w-12 h-12 mx-auto mb-4 text-blue-500" />
+                      <h3 className="text-lg font-semibold mb-2">Start a Conversation</h3>
+                      <p className="mb-6">Ask any medical question or try one of the examples below</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {exampleQueries.map((query, index) => (
+                          <Button
+                            key={index}
+                            variant="outline"
+                            className="justify-start text-left"
+                            onClick={() => setInputValue(query)}
+                          >
+                            <Search className="w-4 h-4 mr-2" />
+                            {query}
+                          </Button>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Try our demo questions below..."
-                  value={query}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
-                  className="flex-1"
-                />
-                <Button onClick={handleAskDemo}>
-                  Ask
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[demoResponses[0].question, demoResponses[1].question].map((q, i) => (
-                  <Button
-                    key={i}
-                    variant="outline"
-                    size="sm"
-                    className="text-sm"
-                    onClick={() => setQuery(q)}
-                  >
-                    {q}
+                  ) : (
+                    messages.map((message, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex ${message.role === 'assistant' ? 'justify-start' : 'justify-end'}`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-lg p-4 ${
+                            message.role === 'assistant'
+                              ? 'bg-slate-800 text-white'
+                              : 'bg-blue-500 text-white'
+                          }`}
+                        >
+                          {message.content}
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                  {isLoading && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex justify-start"
+                    >
+                      <div className="bg-slate-800 rounded-lg p-4">
+                        <div className="flex space-x-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-100" />
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+                <form onSubmit={handleSubmit} className="flex gap-2">
+                  <Input
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder="Ask a medical question..."
+                    className="flex-1 bg-slate-800 border-slate-700"
+                  />
+                  <Button type="submit" disabled={isLoading}>
+                    <Send className="w-4 h-4" />
                   </Button>
+                </form>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="cases" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {caseStudies.map((study, index) => (
+                  <motion.div
+                    key={study.title}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card className="p-6 border-slate-800 bg-slate-900/50 hover:bg-slate-900/75 transition-all cursor-pointer">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="p-2 rounded-lg bg-blue-500/10">
+                          <BookOpen className="h-6 w-6 text-blue-500" />
+                        </div>
+                        <h3 className="text-lg font-semibold">{study.title}</h3>
+                      </div>
+                      <p className="text-slate-400 mb-4">{study.description}</p>
+                      <div className="flex items-center justify-between text-sm text-slate-400">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          {study.time}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Star className="w-4 h-4 text-yellow-500" />
+                          {study.rating}
+                        </div>
+                      </div>
+                      <Button className="w-full mt-4">
+                        Start Case <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </Card>
+                  </motion.div>
                 ))}
               </div>
-              
-              {/* Sign up call-to-action */}
-              <Card className="mt-6 border-blue-500/20 bg-blue-500/5 p-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10">
-                    <Lock className="h-6 w-6 text-blue-500" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold">Unlock Full Access</h3>
-                    <p className="text-sm text-gray-400 mb-4">
-                      Sign up to ask unlimited questions, access detailed explanations,
-                      and get personalized learning recommendations.
+            </TabsContent>
+
+            <TabsContent value="knowledge" className="space-y-4">
+              <Card className="p-6 border-slate-800 bg-slate-900/50">
+                <div className="flex items-center gap-4 mb-6">
+                  <Input
+                    placeholder="Search medical knowledge base..."
+                    className="flex-1 bg-slate-800 border-slate-700"
+                  />
+                  <Button>
+                    <Search className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="p-4 border-slate-800 bg-slate-800/50">
+                    <h3 className="font-semibold mb-2">Disease Database</h3>
+                    <p className="text-sm text-slate-400">
+                      Comprehensive information about diseases, symptoms, and treatments
                     </p>
-                    <div className="flex gap-3">
-                      <Link href="/signup" className="flex-1 sm:flex-none">
-                        <Button className="w-full">Sign up now</Button>
-                      </Link>
-                      <Link href="/login" className="flex-1 sm:flex-none">
-                        <Button variant="outline" className="w-full">Log in</Button>
-                      </Link>
-                    </div>
-                  </div>
+                  </Card>
+                  <Card className="p-4 border-slate-800 bg-slate-800/50">
+                    <h3 className="font-semibold mb-2">Drug Reference</h3>
+                    <p className="text-sm text-slate-400">
+                      Detailed medication information and interactions
+                    </p>
+                  </Card>
+                  <Card className="p-4 border-slate-800 bg-slate-800/50">
+                    <h3 className="font-semibold mb-2">Clinical Guidelines</h3>
+                    <p className="text-sm text-slate-400">
+                      Evidence-based protocols and best practices
+                    </p>
+                  </Card>
+                  <Card className="p-4 border-slate-800 bg-slate-800/50">
+                    <h3 className="font-semibold mb-2">Medical Calculators</h3>
+                    <p className="text-sm text-slate-400">
+                      Common clinical scoring systems and calculations
+                    </p>
+                  </Card>
                 </div>
               </Card>
-            </div>
-          </Card>
-        </section>
-
-        {/* Features Section */}
-        <section className="bg-slate-950/50 py-24">
-          <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.8 }}
-              className="mx-auto max-w-2xl text-center"
-            >
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Powered by Advanced AI
-              </h2>
-              <p className="mt-6 text-lg leading-8 text-gray-300">
-                Our AI assistant combines cutting-edge technology with comprehensive medical knowledge
-                to provide accurate and helpful responses.
-              </p>
-            </motion.div>
-
-            <div className="mx-auto mt-16 grid max-w-lg grid-cols-1 gap-6 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-              {features.map((feature) => (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: feature.delay }}
-                >
-                  <Card className="relative overflow-hidden border-slate-800 bg-slate-950/50 p-6 hover:border-slate-700 transition-colors duration-300">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-900">
-                      <feature.icon className="h-6 w-6 text-blue-500" />
-                    </div>
-                    <h3 className="mt-4 text-lg font-semibold">{feature.title}</h3>
-                    <p className="mt-2 text-gray-400">{feature.description}</p>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
+            </TabsContent>
+          </Tabs>
+        </div>
       </main>
-    </>
+    </div>
   );
 } 
