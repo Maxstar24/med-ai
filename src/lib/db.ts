@@ -1,12 +1,9 @@
 import { createClient } from '@vercel/postgres';
 import bcrypt from 'bcrypt';
 
-// Construct connection string from parameters
-const CONNECTION_STRING = `postgres://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}/${process.env.POSTGRES_DATABASE}?sslmode=require`;
-
 // Create a client instance
 const db = createClient({
-  connectionString: CONNECTION_STRING,
+  connectionString: process.env.POSTGRES_URL_NON_POOLING,
   ssl: {
     rejectUnauthorized: true
   }
@@ -17,7 +14,7 @@ async function ensureConnection(retries = 3, delay = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
       console.log(`Attempting database connection (attempt ${i + 1}/${retries})...`);
-      console.log('Using connection string:', CONNECTION_STRING.replace(/:[^:@]+@/, ':****@')); // Log connection string with password hidden
+      console.log('Using connection string:', process.env.POSTGRES_URL_NON_POOLING?.replace(/:[^:@]+@/, ':****@')); // Log connection string with password hidden
       await db.sql`SELECT 1`; // Simple query to test connection
       console.log('Database connection verified');
       return;
