@@ -1,18 +1,23 @@
 import { createClient } from '@vercel/postgres';
 import bcrypt from 'bcrypt';
 
-// Create a client instance that connects immediately
+// Create a client instance
 const db = createClient({
-  connectionString: process.env.POSTGRES_URL_NON_POOLING // Using non-pooling for more reliable connections
+  connectionString: process.env.POSTGRES_URL_NON_POOLING,
+  ssl: {
+    rejectUnauthorized: true
+  }
 });
 
-// Connect immediately
-try {
-  await db.connect();
-  console.log('Database connected successfully');
-} catch (error) {
-  console.error('Failed to connect to database:', error);
-  throw new Error('Database connection failed');
+// Function to ensure database connection
+async function ensureConnection() {
+  try {
+    await db.sql`SELECT 1`; // Simple query to test connection
+    console.log('Database connection verified');
+  } catch (error) {
+    console.error('Database connection error:', error);
+    throw new Error('Failed to connect to database');
+  }
 }
 
 interface PostgresError extends Error {
@@ -29,40 +34,44 @@ export async function createUser({
   password: string; 
 }) {
   try {
+    // Ensure connection before proceeding
+    await ensureConnection();
+    
     console.log('Starting user creation process...');
     
     // Start transaction
-    await db.query('BEGIN');
+    await db.sql`BEGIN`;
     
     console.log('Hashing password...');
     const hashedPassword = await bcrypt.hash(password, 10);
     
     console.log('Creating user record...');
     // First, create the user
-    const userResult = await db.query(
-      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email',
-      [name, email, hashedPassword]
-    );
+    const userResult = await db.sql`
+      INSERT INTO users (name, email, password) 
+      VALUES (${name}, ${email}, ${hashedPassword}) 
+      RETURNING id, name, email
+    `;
 
     const user = userResult.rows[0];
     console.log('User record created:', { id: user.id, email: user.email });
 
     console.log('Creating profile record...');
     // Create profile
-    await db.query(
-      'INSERT INTO profiles (user_id) VALUES ($1)',
-      [user.id]
-    );
+    await db.sql`
+      INSERT INTO profiles (user_id) 
+      VALUES (${user.id})
+    `;
 
     console.log('Creating preferences record...');
     // Create preferences
-    await db.query(
-      'INSERT INTO preferences (user_id) VALUES ($1)',
-      [user.id]
-    );
+    await db.sql`
+      INSERT INTO preferences (user_id) 
+      VALUES (${user.id})
+    `;
 
     console.log('Committing transaction...');
-    await db.query('COMMIT');
+    await db.sql`COMMIT`;
 
     console.log('User creation completed successfully');
     return user;
@@ -76,7 +85,7 @@ export async function createUser({
     // Rollback transaction on error
     try {
       console.log('Rolling back transaction...');
-      await db.query('ROLLBACK');
+      await db.sql`ROLLBACK`;
     } catch (rollbackError) {
       console.error('Error rolling back transaction:', rollbackError);
     }
@@ -90,11 +99,11 @@ export async function createUser({
 
 export async function getUserByEmail(email: string) {
   try {
+    await ensureConnection();
     console.log('Querying user by email:', email);
-    const result = await db.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email]
-    );
+    const result = await db.sql`
+      SELECT * FROM users WHERE email = ${email}
+    `;
     console.log('User query result:', result.rows.length ? 'User found' : 'No user found');
     return result.rows[0];
   } catch (error) {
@@ -105,10 +114,10 @@ export async function getUserByEmail(email: string) {
 
 export async function getUserById(id: string) {
   try {
-    const result = await db.query(
-      'SELECT id, name, email FROM users WHERE id = $1',
-      [id]
-    );
+    await ensureConnection();
+    const result = await db.sql`
+      SELECT id, name, email FROM users WHERE id = ${id}
+    `;
     return result.rows[0];
   } catch (error) {
     console.error('Error getting user:', error);
