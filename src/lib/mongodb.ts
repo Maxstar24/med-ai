@@ -1,23 +1,25 @@
 import mongoose from 'mongoose';
 
+interface GlobalMongoose {
+  conn: Promise<typeof mongoose> | null;
+  promise: Promise<typeof mongoose> | null;
+}
+
 declare global {
-  var mongoose: {
-    conn: ReturnType<typeof mongoose.connect> | null;
-    promise: ReturnType<typeof mongoose.connect> | null;
-  } | undefined;
+  var mongoose: GlobalMongoose | undefined;
 }
 
 if (!process.env.MONGODB_URI) {
   throw new Error('Please add your MongoDB URI to .env.local');
 }
 
-let cached = global.mongoose;
+const cached: GlobalMongoose = global.mongoose || { conn: null, promise: null };
 
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+if (!global.mongoose) {
+  global.mongoose = cached;
 }
 
-async function connectDB() {
+async function connectDB(): Promise<typeof mongoose> {
   if (cached.conn) {
     console.log('Using cached MongoDB connection');
     return cached.conn;
@@ -33,8 +35,9 @@ async function connectDB() {
   }
 
   try {
-    cached.conn = await cached.promise;
-    return cached.conn;
+    const conn = await cached.promise;
+    cached.conn = cached.promise;
+    return conn;
   } catch (e) {
     cached.promise = null;
     throw e;

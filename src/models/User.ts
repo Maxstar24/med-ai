@@ -3,26 +3,75 @@ import bcrypt from 'bcrypt';
 
 // Profile Schema
 const ProfileSchema = new mongoose.Schema({
-  dateOfBirth: Date,
+  dateOfBirth: {
+    type: Date,
+    validate: {
+      validator: function(v: Date) {
+        return v <= new Date();
+      },
+      message: 'Date of birth cannot be in the future'
+    }
+  },
   gender: {
     type: String,
-    enum: ['male', 'female', 'other', 'prefer-not-to-say']
+    enum: {
+      values: ['male', 'female', 'other', 'prefer-not-to-say'],
+      message: '{VALUE} is not a valid gender option'
+    }
   },
   medicalHistory: [{
-    condition: String,
-    diagnosedDate: Date,
-    medications: [String],
-    notes: String
+    condition: {
+      type: String,
+      required: [true, 'Condition name is required'],
+      trim: true
+    },
+    diagnosedDate: {
+      type: Date,
+      required: [true, 'Diagnosis date is required'],
+      validate: {
+        validator: function(v: Date) {
+          return v <= new Date();
+        },
+        message: 'Diagnosis date cannot be in the future'
+      }
+    },
+    medications: [{
+      type: String,
+      trim: true
+    }],
+    notes: {
+      type: String,
+      maxlength: [1000, 'Notes cannot be longer than 1000 characters']
+    }
   }],
-  allergies: [String],
+  allergies: [{
+    type: String,
+    trim: true
+  }],
   emergencyContact: {
-    name: String,
-    relationship: String,
-    phone: String
+    name: {
+      type: String,
+      required: [true, 'Emergency contact name is required'],
+      trim: true,
+      maxlength: [100, 'Name cannot be longer than 100 characters']
+    },
+    relationship: {
+      type: String,
+      required: [true, 'Relationship is required'],
+      trim: true
+    },
+    phone: {
+      type: String,
+      required: [true, 'Phone number is required'],
+      match: [/^\+?[\d\s-()]{8,}$/, 'Please provide a valid phone number']
+    }
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
-}, { _id: false }); // Disable _id for embedded document
+}, { 
+  _id: false,
+  timestamps: true 
+});
 
 // Preferences Schema
 const PreferencesSchema = new mongoose.Schema({
@@ -32,11 +81,28 @@ const PreferencesSchema = new mongoose.Schema({
     appointments: { type: Boolean, default: true },
     results: { type: Boolean, default: true }
   },
-  language: { type: String, default: 'en' },
-  theme: { type: String, default: 'light' },
+  language: { 
+    type: String, 
+    default: 'en',
+    enum: {
+      values: ['en', 'es', 'fr'],
+      message: '{VALUE} is not a supported language'
+    }
+  },
+  theme: { 
+    type: String, 
+    default: 'light',
+    enum: {
+      values: ['light', 'dark', 'system'],
+      message: '{VALUE} is not a valid theme'
+    }
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
-}, { _id: false }); // Disable _id for embedded document
+}, { 
+  _id: false,
+  timestamps: true 
+});
 
 // User Schema
 const UserSchema = new mongoose.Schema({
