@@ -1,5 +1,12 @@
 import mongoose from 'mongoose';
 
+declare global {
+  var mongoose: {
+    conn: ReturnType<typeof mongoose.connect> | null;
+    promise: ReturnType<typeof mongoose.connect> | null;
+  } | undefined;
+}
+
 if (!process.env.MONGODB_URI) {
   throw new Error('Please add your MongoDB URI to .env.local');
 }
@@ -22,15 +29,7 @@ async function connectDB() {
     };
 
     console.log('Connecting to MongoDB...');
-    cached.promise = mongoose.connect(process.env.MONGODB_URI!, opts)
-      .then((mongoose) => {
-        console.log('MongoDB connected successfully');
-        return mongoose;
-      })
-      .catch((error) => {
-        console.error('MongoDB connection error:', error);
-        throw error;
-      });
+    cached.promise = mongoose.connect(process.env.MONGODB_URI!, opts);
   }
 
   try {

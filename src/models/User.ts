@@ -3,14 +3,37 @@ import bcrypt from 'bcrypt';
 
 // Profile Schema
 const ProfileSchema = new mongoose.Schema({
-  // Add any profile fields you need
+  dateOfBirth: Date,
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other', 'prefer-not-to-say']
+  },
+  medicalHistory: [{
+    condition: String,
+    diagnosedDate: Date,
+    medications: [String],
+    notes: String
+  }],
+  allergies: [String],
+  emergencyContact: {
+    name: String,
+    relationship: String,
+    phone: String
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { _id: false }); // Disable _id for embedded document
 
 // Preferences Schema
 const PreferencesSchema = new mongoose.Schema({
-  // Add any preferences fields you need
+  notifications: {
+    email: { type: Boolean, default: true },
+    sms: { type: Boolean, default: false },
+    appointments: { type: Boolean, default: true },
+    results: { type: Boolean, default: true }
+  },
+  language: { type: String, default: 'en' },
+  theme: { type: String, default: 'light' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { _id: false }); // Disable _id for embedded document
