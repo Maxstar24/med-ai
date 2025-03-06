@@ -5,6 +5,10 @@ import { NoteEditor } from '@/components/NoteEditor';
 import { CategoryEditor } from '@/components/CategoryEditor';
 import { useState } from 'react';
 import { ICategory, INote } from '@/types/models';
+import { ViewSwitcher } from '@/components/ViewSwitcher';
+import { AIChatBox } from '@/components/AIChatBox';
+import { Button } from '@/components/ui/button';
+import { MessageSquarePlus } from 'lucide-react';
 
 export default function NotesPage() {
   const [categories, setCategories] = useState<ICategory[]>([]);
@@ -13,6 +17,8 @@ export default function NotesPage() {
   const [isCategoryEditorOpen, setIsCategoryEditorOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<Partial<INote> | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Partial<ICategory> | null>(null);
+  const [view, setView] = useState<'list' | 'kanban'>('list');
+  const [showAIChat, setShowAIChat] = useState(false);
 
   const handleUpdateCategory = async (categoryId: string, updates: Partial<ICategory>) => {
     try {
@@ -135,18 +141,20 @@ export default function NotesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Notes</h1>
-          <button
-            onClick={() => setIsCategoryEditorOpen(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Add Category
-          </button>
-        </div>
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-4">
+        <ViewSwitcher currentView={view} onViewChange={setView} />
+        <Button
+          onClick={() => setShowAIChat(!showAIChat)}
+          variant="outline"
+          size="sm"
+        >
+          <MessageSquarePlus className="h-4 w-4 mr-1" />
+          {showAIChat ? 'Hide AI Assistant' : 'Show AI Assistant'}
+        </Button>
+      </div>
 
+      {view === 'kanban' ? (
         <KanbanBoard
           categories={categories}
           notes={notes}
@@ -158,37 +166,46 @@ export default function NotesPage() {
             setIsNoteEditorOpen(true);
           }}
         />
+      ) : (
+        <div className="grid gap-4">
+          {/* List view implementation */}
+          <p>List view coming soon...</p>
+        </div>
+      )}
 
-        {isNoteEditorOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
-              <NoteEditor
-                note={selectedNote || undefined}
-                onSave={handleSaveNote}
-                onCancel={() => {
-                  setIsNoteEditorOpen(false);
-                  setSelectedNote(null);
-                }}
-              />
-            </div>
+      {isNoteEditorOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+            <NoteEditor
+              note={selectedNote || undefined}
+              onSave={handleSaveNote}
+              onCancel={() => {
+                setIsNoteEditorOpen(false);
+                setSelectedNote(null);
+              }}
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {isCategoryEditorOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <CategoryEditor
-                category={selectedCategory || undefined}
-                onSave={handleSaveCategory}
-                onCancel={() => {
-                  setIsCategoryEditorOpen(false);
-                  setSelectedCategory(null);
-                }}
-              />
-            </div>
+      {isCategoryEditorOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <CategoryEditor
+              category={selectedCategory || undefined}
+              onSave={handleSaveCategory}
+              onCancel={() => {
+                setIsCategoryEditorOpen(false);
+                setSelectedCategory(null);
+              }}
+            />
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {showAIChat && (
+        <AIChatBox onClose={() => setShowAIChat(false)} />
+      )}
     </div>
   );
 } 
