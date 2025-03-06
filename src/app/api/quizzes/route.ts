@@ -1,129 +1,149 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { z } from 'zod';
+import { connectToDatabase } from '@/lib/mongodb';
+import Quiz from '@/models/Quiz';
+import mongoose from 'mongoose';
 
-const questionSchema = z.object({
-  id: z.string(),
-  type: z.enum(['multiple-choice', 'true-false', 'fill-in-blank', 'matching']),
-  question: z.string(),
-  options: z.array(z.string()).optional(),
-  correctAnswer: z.union([z.string(), z.number(), z.boolean()]),
-  explanation: z.string(),
-  difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
-  topic: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-});
-
-const quizSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  questions: z.array(questionSchema),
-});
-
-export async function POST(request: Request) {
-  try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Validate request body
-    const body = await request.json();
-    const validatedData = quizSchema.parse(body);
-
-    // Here you would typically save to your database
-    // For now, we'll just return success
-    // Example with MongoDB:
-    /*
-    const quiz = await db.collection('quizzes').insertOne({
-      ...validatedData,
-      userId: session.user.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    */
-
-    return NextResponse.json({
-      message: 'Quiz saved successfully',
-      // quiz: quiz.insertedId
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0].message },
-        { status: 400 }
-      );
-    }
-
-    console.error('Quiz API error:', error);
-    return NextResponse.json(
-      { error: 'Failed to save quiz' },
-      { status: 500 }
-    );
-  }
-}
-
+// GET: Fetch all quizzes or filter by topic/difficulty
 export async function GET(request: Request) {
   try {
-    // Check authentication
+    // Connect to the database
+    await connectToDatabase();
+    
+    // Get the session for authentication
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get query parameters
+    
+    // Get URL parameters for filtering
     const { searchParams } = new URL(request.url);
     const topic = searchParams.get('topic');
     const difficulty = searchParams.get('difficulty');
-
-    // Here you would typically query your database
-    // For now, return mock data
-    const mockQuizzes = [
-      {
-        id: '1',
-        title: 'Cardiology Basics',
-        description: 'Basic concepts in cardiology',
-        questionCount: 10,
-        difficulty: 'beginner',
-        topic: 'Cardiology',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: '2',
-        title: 'Advanced Pharmacology',
-        description: 'Complex drug interactions and mechanisms',
-        questionCount: 15,
-        difficulty: 'advanced',
-        topic: 'Pharmacology',
-        createdAt: new Date().toISOString(),
-      },
+    
+    // Build query based on filters
+    const query: any = {};
+    
+    // Filter by topic if provided
+    if (topic) query.topic = topic;
+    
+    // Filter by difficulty if provided
+    if (difficulty) query.difficulty = difficulty;
+    
+    // Add filter to only show public quizzes or ones created by the current user
+    query.$or = [
+      { isPublic: true },
+      { createdBy: new mongoose.Types.ObjectId(session.user.id) }
     ];
-
-    // Filter mock data
-    let filteredQuizzes = [...mockQuizzes];
-    if (topic) {
-      filteredQuizzes = filteredQuizzes.filter(q => q.topic === topic);
-    }
-    if (difficulty) {
-      filteredQuizzes = filteredQuizzes.filter(q => q.difficulty === difficulty);
-    }
-
-    return NextResponse.json({
-      quizzes: filteredQuizzes
-    });
+    
+    // Fetch quizzes from the database
+    const quizzes = await Quiz.find(query)
+      .sort({ createdAt: -1 }) // Sort by most recent first
+      .lean();
+    
+    return NextResponse.json({ quizzes });
   } catch (error) {
-    console.error('Quiz API error:', error);
+    console.error('Error fetching quizzes:', error);
     return NextResponse.json(
       { error: 'Failed to fetch quizzes' },
       { status: 500 }
     );
   }
-} 
+}
+
+// POST: Create a new quiz
+export async function POST(request: Request) {
+  try {
+    // Connect to the database
+    await connectToDatabase();
+    
+    // Get the session for authentication
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Get the request body
+    const body = await request.json();
+    
+    // Validate required fields
+    if (!body.title || !body.description || !body.questions || !body.difficulty || !body.topic) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+    
+    // Create the quiz
+    const quiz = new Quiz({
+      ...body,
+      createdBy: session.user.id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    
+    // Save the quiz to the database
+    await quiz.save();
+    
+    return NextResponse.json(
+      { message: 'Quiz created successfully', quiz },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('Error creating quiz:', error);
+    return NextResponse.json(
+      { error: 'Failed to create quiz' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH: Update a quiz (we'll handle this in the [id] route)
+
+// DELETE: Delete multiple quizzes (bulk operation)
+export async function DELETE(request: Request) {
+  try {
+    // Connect to the database
+    await connectToDatabase();
+    
+    // Get the session for authentication
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Get the request body with quiz IDs to delete
+    const { quizIds } = await request.json();
+    
+    if (!quizIds || !Array.isArray(quizIds) || quizIds.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid quiz IDs provided' },
+        { status: 400 }
+      );
+    }
+    
+    // Only allow deletion of quizzes created by the current user
+    const result = await Quiz.deleteMany({
+      _id: { $in: quizIds.map(id => new mongoose.Types.ObjectId(id)) },
+      createdBy: session.user.id
+    });
+    
+    if (result.deletedCount === 0) {
+      return NextResponse.json(
+        { error: 'No quizzes found or you are not authorized to delete them' },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json({
+      message: `Successfully deleted ${result.deletedCount} quizzes`
+    });
+  } catch (error) {
+    console.error('Error deleting quizzes:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete quizzes' },
+      { status: 500 }
+    );
+  }
+}

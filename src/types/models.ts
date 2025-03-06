@@ -27,4 +27,23 @@ export interface INote extends Document {
   status: 'active' | 'archived';
   createdAt: Date;
   updatedAt: Date;
-} 
+}
+
+export interface IQuiz extends Document {
+  title: string;
+  description: string;
+  isPublic: boolean;
+  createdBy: string;
+  questions: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IQuizResult extends Document {
+  userId: string;
+  quizId: string;
+  score: number;
+  answers: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}

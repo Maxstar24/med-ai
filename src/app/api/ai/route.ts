@@ -3,13 +3,38 @@ import { generateMedicalResponse, generateStudyPlan, generateQuizQuestions } fro
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const type = formData.get('type') as string;
-    const prompt = formData.get('prompt') as string;
-    const file = formData.get('file') as File | null;
-    const topic = formData.get('topic') as string;
-    const numberOfQuestions = Number(formData.get('numberOfQuestions')) || 5;
+    // Check content type to determine how to parse the request
+    const contentType = request.headers.get('content-type') || '';
+    
+    let type, prompt, file, topic, numberOfQuestions;
+    
+    // Handle JSON requests
+    if (contentType.includes('application/json')) {
+      const jsonData = await request.json();
+      type = jsonData.type || 'medical';
+      prompt = jsonData.message || jsonData.prompt || '';
+      topic = jsonData.topic || '';
+      numberOfQuestions = jsonData.numberOfQuestions || 5;
+      file = null;
+    } 
+    // Handle FormData requests
+    else if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      type = formData.get('type') as string || 'medical';
+      prompt = formData.get('prompt') as string || '';
+      file = formData.get('file') as File | null;
+      topic = formData.get('topic') as string || '';
+      numberOfQuestions = Number(formData.get('numberOfQuestions')) || 5;
+    } 
+    // Handle unsupported content types
+    else {
+      return NextResponse.json(
+        { error: 'Unsupported content type. Please use JSON or FormData.' },
+        { status: 400 }
+      );
+    }
 
+    // Process file if it exists
     let fileContent = '';
     if (file) {
       fileContent = await file.text();
@@ -53,4 +78,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

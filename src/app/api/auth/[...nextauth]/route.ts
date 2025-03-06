@@ -2,7 +2,8 @@ import NextAuth from "next-auth";
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
-import clientPromise from "@/lib/mongodb";
+import { connectToDatabase } from '@/lib/mongodb';
+import mongoose from 'mongoose';
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -18,8 +19,13 @@ export const authOptions: AuthOptions = {
         }
 
         try {
-          const client = await clientPromise;
-          const db = client.db('med-ai');
+          const client = await connectToDatabase();
+          const db = mongoose.connection.db;
+
+          if (!db) {
+            throw new Error('Database connection failed');
+          }
+
           const user = await db.collection('users').findOne({ 
             email: credentials.email 
           });
@@ -82,4 +88,4 @@ export const authOptions: AuthOptions = {
 };
 
 const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST }; 
+export { handler as GET, handler as POST };
