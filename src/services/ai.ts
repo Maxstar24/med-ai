@@ -21,8 +21,7 @@ export async function generateMedicalResponse(prompt: string): Promise<AIRespons
     Please provide accurate, evidence-based information and include relevant medical terminology where appropriate.`;
 
     const result = await model.generateContent(medicalPrompt);
-    const response = await result.response;
-    return { text: response.text() };
+    return { text: result.response.text() };
   } catch (error) {
     console.error('Error generating AI response:', error);
     return {
@@ -48,8 +47,7 @@ export async function generateStudyPlan(topic: string): Promise<AIResponse> {
     Format the response in a clear, structured way that's easy to follow.`;
 
     const result = await model.generateContent(studyPrompt);
-    const response = await result.response;
-    return { text: response.text() };
+    return { text: result.response.text() };
   } catch (error) {
     console.error('Error generating study plan:', error);
     return {
@@ -74,8 +72,7 @@ export async function generateQuizQuestions(topic: string, numberOfQuestions: nu
     Format each question clearly and ensure the difficulty is appropriate for medical students.`;
 
     const result = await model.generateContent(quizPrompt);
-    const response = await result.response;
-    return { text: response.text() };
+    return { text: result.response.text() };
   } catch (error) {
     console.error('Error generating quiz questions:', error);
     return {
@@ -83,4 +80,4 @@ export async function generateQuizQuestions(topic: string, numberOfQuestions: nu
       error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
-} 
+}

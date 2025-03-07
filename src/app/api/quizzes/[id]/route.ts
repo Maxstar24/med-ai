@@ -26,8 +26,17 @@ export async function GET(
     
     // Get the quiz ID from the URL parameters
     console.log('Params:', params);
-    const id = params.id;
+    // Properly await params before using it
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
     console.log('Quiz ID:', id);
+    
+    if (!id || id === 'undefined') {
+      return NextResponse.json(
+        { error: 'Invalid quiz ID' },
+        { status: 400 }
+      );
+    }
     
     // Find the quiz in the database
     const quiz: IQuiz | null = await Quiz.findById(id);
@@ -76,7 +85,15 @@ export async function PATCH(
     }
     
     // Get the quiz ID from the URL parameters
-    const id = params.id;
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
+    
+    if (!id || id === 'undefined') {
+      return NextResponse.json(
+        { error: 'Invalid quiz ID' },
+        { status: 400 }
+      );
+    }
     
     // Get the request body
     const updates = await request.json();
@@ -148,7 +165,15 @@ export async function DELETE(
     }
     
     // Get the quiz ID from the URL parameters
-    const id = params.id;
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
+    
+    if (!id || id === 'undefined') {
+      return NextResponse.json(
+        { error: 'Invalid quiz ID' },
+        { status: 400 }
+      );
+    }
     
     // Find and delete the quiz only if it belongs to the current user
     const result = await Quiz.findOneAndDelete({

@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     
     // Get the request body
     const body = await request.json();
+    console.log('Request body:', body);
     
     // Validate required fields
     if (!body.quizId || !body.score || body.answers === undefined) {
@@ -92,6 +93,7 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
+    console.log('Quiz found:', quiz);
     
     // Calculate total questions
     const totalQuestions = quiz.questions.length;
@@ -101,6 +103,7 @@ export async function POST(request: Request) {
       userId: session.user.id,
       quizId: body.quizId 
     }).sort({ completedAt: -1 });
+    console.log('Previous result:', previousResult);
     
     // Calculate improvement if there's a previous result
     let improvement = null;
@@ -144,9 +147,11 @@ export async function POST(request: Request) {
       improvement,
       streak
     });
+    console.log('Quiz result to save:', quizResult);
     
     // Save the result to the database
     await quizResult.save();
+    console.log('Quiz result saved successfully');
     
     // Prepare response with additional data
     const resultWithQuizInfo = {

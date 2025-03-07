@@ -13,10 +13,12 @@ import { motion } from 'framer-motion';
 import { Search, Brain, Award, Clock, Plus } from 'lucide-react';
 
 interface Quiz {
-  id: string;
+  _id?: string;
+  id?: string; 
   title: string;
   description: string;
-  questionCount: number;
+  questionCount?: number;
+  questions?: any[];
   difficulty: string;
   topic: string;
   createdAt: string;
@@ -71,6 +73,12 @@ export default function QuizzesPage() {
       router.push(`/quizzes/${quizId}`);
     }
   }, [searchParams, status, router]);
+
+  // Helper function to get the correct quiz ID
+  const getQuizId = (quiz: Quiz) => quiz._id || quiz.id;
+
+  // Helper to get the number of questions in a quiz
+  const getQuestionCount = (quiz: Quiz) => quiz.questionCount || quiz.questions?.length || 0;
 
   const filteredQuizzes = quizzes.filter(quiz =>
     quiz.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -169,15 +177,16 @@ export default function QuizzesPage() {
           ) : filteredQuizzes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredQuizzes.map((quiz, index) => {
-                console.log('Quiz ID:', quiz.id);
+                const quizId = getQuizId(quiz);
+                console.log('Quiz ID:', quizId);
                 return (
                   <motion.div
-                    key={quiz.id || index}
+                    key={quizId || index}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <Link href={`/quizzes/${quiz.id}`}>
+                    <Link href={`/quizzes/${quizId}`}>
                       <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
                         <h3 className="text-xl font-semibold mb-2">{quiz.title}</h3>
                         <p className="text-muted-foreground mb-4 line-clamp-2">
@@ -194,7 +203,7 @@ export default function QuizzesPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />
-                            <span className="text-sm">{quiz.questionCount} questions</span>
+                            <span className="text-sm">{getQuestionCount(quiz)} questions</span>
                           </div>
                         </div>
                       </Card>

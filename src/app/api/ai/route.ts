@@ -1,54 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateMedicalResponse, generateStudyPlan, generateQuizQuestions } from '@/services/ai';
+import { generateMedicalResponse, generateQuizQuestions, generateStudyPlan } from '@/services/ai';
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    // Check content type to determine how to parse the request
-    const contentType = request.headers.get('content-type') || '';
+    const body = await req.json();
+    const { prompt, action, topic, numberOfQuestions } = body;
     
-    let type, prompt, file, topic, numberOfQuestions;
-    
-    // Handle JSON requests
-    if (contentType.includes('application/json')) {
-      const jsonData = await request.json();
-      type = jsonData.type || 'medical';
-      prompt = jsonData.message || jsonData.prompt || '';
-      topic = jsonData.topic || '';
-      numberOfQuestions = jsonData.numberOfQuestions || 5;
-      file = null;
-    } 
-    // Handle FormData requests
-    else if (contentType.includes('multipart/form-data')) {
-      const formData = await request.formData();
-      type = formData.get('type') as string || 'medical';
-      prompt = formData.get('prompt') as string || '';
-      file = formData.get('file') as File | null;
-      topic = formData.get('topic') as string || '';
-      numberOfQuestions = Number(formData.get('numberOfQuestions')) || 5;
-    } 
-    // Handle unsupported content types
-    else {
-      return NextResponse.json(
-        { error: 'Unsupported content type. Please use JSON or FormData.' },
-        { status: 400 }
-      );
-    }
-
-    // Process file if it exists
-    let fileContent = '';
-    if (file) {
-      fileContent = await file.text();
-    }
-
-    let enhancedPrompt = prompt;
-    if (fileContent) {
-      enhancedPrompt = `${prompt}\n\nContext from uploaded file:\n${fileContent}`;
-    }
-
     let response;
-    switch (type) {
+    
+    console.log('Received request:', { action, prompt, topic, numberOfQuestions });
+
+    switch (action) {
       case 'medical':
-        response = await generateMedicalResponse(enhancedPrompt);
+        response = await generateMedicalResponse(prompt);
         break;
       case 'study':
         response = await generateStudyPlan(topic);
@@ -57,24 +21,16 @@ export async function POST(request: NextRequest) {
         response = await generateQuizQuestions(topic, numberOfQuestions);
         break;
       default:
-        return NextResponse.json(
-          { error: 'Invalid request type' },
-          { status: 400 }
-        );
+        response = await generateMedicalResponse(prompt);
     }
-
-    if (response.error) {
-      return NextResponse.json(
-        { error: response.error },
-        { status: 500 }
-      );
-    }
-
+    
+    console.log('AI response:', response);
+    
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error processing AI request:', error);
+    console.error('Error in AI route:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { text: '', error: error instanceof Error ? error.message : 'An unknown error occurred' },
       { status: 500 }
     );
   }
