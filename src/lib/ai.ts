@@ -32,8 +32,9 @@ export async function queryAI(options: AIRequestOptions): Promise<AIResponse> {
     }
 
     const data = await response.json();
+    // Handle the text property returned by the API
     return {
-      message: data.message,
+      message: data.text, // Changed from data.message to data.text
       tokens: data.tokens,
     };
   } catch (error) {
@@ -92,4 +93,4 @@ Please provide:
 5. Additional learning resources or topics to review
 
 Feedback:`;
-} 
+}

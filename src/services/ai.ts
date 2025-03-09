@@ -15,10 +15,16 @@ export async function generateMedicalResponse(prompt: string): Promise<AIRespons
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
     
-    // Add medical context to the prompt
+    // Add medical context to the prompt and specify markdown format with table support
     const medicalPrompt = `As a medical education AI assistant, please help with the following: ${prompt}
     
-    Please provide accurate, evidence-based information and include relevant medical terminology where appropriate.`;
+    Please provide accurate, evidence-based information and include relevant medical terminology where appropriate. 
+    Format your response using proper markdown, including:
+    - Headers and subheaders for organization
+    - Lists where appropriate
+    - Tables for structured data
+    - Bold or italics for emphasis
+    - Code blocks for any technical information`;
 
     const result = await model.generateContent(medicalPrompt);
     return { text: result.response.text() };
