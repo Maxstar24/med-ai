@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Markdown from '@/components/Markdown';
 
 const AIChat = () => {
   const [prompt, setPrompt] = useState('');
@@ -61,7 +62,7 @@ const AIChat = () => {
         </button>
       </form>
       {error && <p style={{ color: 'red' }}>{error}</p>}
-      {response && <p>{response}</p>}
+      {response && <Markdown text={response} />}
     </div>
   );
 };

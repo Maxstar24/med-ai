@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import Markdown from '@/components/Markdown';
 import {
   Brain,
   Send,
@@ -172,7 +173,11 @@ export default function AILearningPage() {
                               : 'bg-blue-500 text-white'
                           }`}
                         >
-                          {message.content}
+                          {message.role === 'assistant' ? (
+                            <Markdown text={message.content} />
+                          ) : (
+                            message.content
+                          )}
                         </div>
                       </motion.div>
                     ))
@@ -287,4 +292,4 @@ export default function AILearningPage() {
       </main>
     </div>
   );
-} 
+}
