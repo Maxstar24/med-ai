@@ -4,12 +4,6 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname, origin } = request.nextUrl;
   
-  // In development, allow all requests to pass through for debugging
-  if (process.env.NODE_ENV === 'development') {
-    console.log("Development mode: allowing all requests");
-    return NextResponse.next();
-  }
-  
   // Get the token
   const token = await getToken({ 
     req: request, 
