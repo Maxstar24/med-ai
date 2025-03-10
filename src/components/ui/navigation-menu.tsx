@@ -8,6 +8,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "./button"
 import { useSession, signOut } from "next-auth/react"
+import { useState, useEffect } from "react"
 
 function NavigationMenu({
   className,
@@ -188,7 +189,18 @@ const components: { title: string; href: string; description: string }[] = [
 ]
 
 export function MainNav() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const [isClient, setIsClient] = useState(false);
+  
+  // Use useEffect to ensure we're rendering on the client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Force a re-render when session status changes
+  useEffect(() => {
+    console.log("Navigation - Auth status:", status, "Session:", session ? "exists" : "null");
+  }, [status, session]);
 
   return (
     <NavigationMenu className="p-4 border-b">
@@ -201,7 +213,7 @@ export function MainNav() {
           </Link>
         </NavigationMenuItem>
 
-        {session ? (
+        {isClient && status === 'authenticated' && session ? (
           <>
             <NavigationMenuItem>
               <Link href="/dashboard" legacyBehavior passHref>
