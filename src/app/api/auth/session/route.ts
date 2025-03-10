@@ -24,14 +24,17 @@ export async function POST(request: NextRequest) {
     const sessionCookie = await getAuth().createSessionCookie(idToken, { expiresIn });
     
     // Set cookie for future requests
-    cookies().set('firebase-session', sessionCookie, {
-      maxAge: expiresIn,
+    const response = NextResponse.json({ success: true });
+    response.cookies.set({
+      name: 'firebase-session',
+      value: sessionCookie,
+      maxAge: expiresIn / 1000, // Convert to seconds
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       path: '/',
     });
     
-    return NextResponse.json({ success: true });
+    return response;
   } catch (error) {
     console.error('Error creating session:', error);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -41,8 +44,9 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   try {
     // Clear the session cookie
-    cookies().delete('firebase-session');
-    return NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true });
+    response.cookies.delete('firebase-session');
+    return response;
   } catch (error) {
     console.error('Error deleting session:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

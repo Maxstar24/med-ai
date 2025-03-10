@@ -36,6 +36,7 @@
     "dompurify": "^3.2.4",
     "dotenv": "^16.4.7",
     "firebase": "^11.4.0",
+    "firebase-admin": "^13.2.0",
     "framer-motion": "^12.4.10",
     "github-markdown-css": "^5.8.1",
     "lodash.debounce": "^4.0.8",

@@ -1,19 +1,39 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
+import { getAuth } from 'firebase-admin/auth';
+import User from '@/models/User';
+
+// Helper function to verify Firebase token
+async function verifyFirebaseToken(request: NextRequest) {
+  try {
+    // Get the Firebase token from the Authorization header
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    
+    // Verify the token
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return null;
+  }
+}
 
 // GET: Fetch all quizzes or filter by topic/difficulty
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     // Connect to the database
     await connectToDatabase();
     
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const decodedToken = await verifyFirebaseToken(request);
+    if (!decodedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -21,6 +41,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const topic = searchParams.get('topic');
     const difficulty = searchParams.get('difficulty');
+    
+    // Find the user by Firebase UID
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
     
     // Build query based on filters
     const query: any = {};
@@ -34,7 +60,8 @@ export async function GET(request: Request) {
     // Add filter to only show public quizzes or ones created by the current user
     query.$or = [
       { isPublic: true },
-      { createdBy: new mongoose.Types.ObjectId(session.user.id) }
+      { createdBy: user._id },
+      { userFirebaseUid: decodedToken.uid }
     ];
     
     // Fetch quizzes from the database
@@ -53,15 +80,21 @@ export async function GET(request: Request) {
 }
 
 // POST: Create a new quiz
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     // Connect to the database
     await connectToDatabase();
     
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const decodedToken = await verifyFirebaseToken(request);
+    if (!decodedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Find the user by Firebase UID
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
     // Get the request body
@@ -78,7 +111,8 @@ export async function POST(request: Request) {
     // Create the quiz
     const quiz = new Quiz({
       ...body,
-      createdBy: session.user.id,
+      createdBy: user._id,
+      userFirebaseUid: decodedToken.uid,
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -99,18 +133,22 @@ export async function POST(request: Request) {
   }
 }
 
-// PATCH: Update a quiz (we'll handle this in the [id] route)
-
 // DELETE: Delete multiple quizzes (bulk operation)
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
     // Connect to the database
     await connectToDatabase();
     
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const decodedToken = await verifyFirebaseToken(request);
+    if (!decodedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Find the user by Firebase UID
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
     // Get the request body with quiz IDs to delete
@@ -126,7 +164,10 @@ export async function DELETE(request: Request) {
     // Only allow deletion of quizzes created by the current user
     const result = await Quiz.deleteMany({
       _id: { $in: quizIds.map(id => new mongoose.Types.ObjectId(id)) },
-      createdBy: session.user.id
+      $or: [
+        { createdBy: user._id },
+        { userFirebaseUid: decodedToken.uid }
+      ]
     });
     
     if (result.deletedCount === 0) {

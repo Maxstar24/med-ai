@@ -20,6 +20,7 @@ export interface IQuiz extends Document {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   topic: string;
   createdBy: Types.ObjectId;
+  userFirebaseUid: string;
   isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -91,6 +92,11 @@ const QuizSchema = new Schema<IQuiz>({
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  userFirebaseUid: {
+    type: String,
+    required: false,
+    index: true
   },
   isPublic: {
     type: Boolean,

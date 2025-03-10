@@ -1,107 +1,50 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
 
 // Profile Schema
-const ProfileSchema = new mongoose.Schema({
+const ProfileSchema = new Schema({
   dateOfBirth: {
     type: Date,
-    validate: {
-      validator: function(v: Date) {
-        return v <= new Date();
-      },
-      message: 'Date of birth cannot be in the future'
-    }
+    required: false
   },
-  gender: {
+  specialty: {
     type: String,
-    enum: {
-      values: ['male', 'female', 'other', 'prefer-not-to-say'],
-      message: '{VALUE} is not a valid gender option'
-    }
+    required: false
   },
-  education: {
-    level: {
-      type: String,
-      enum: {
-        values: ['high_school', 'undergraduate', 'graduate', 'phd', 'other'],
-        message: '{VALUE} is not a valid education level'
-      }
-    },
-    field: {
-      type: String,
-      trim: true
-    },
-    institution: {
-      type: String,
-      trim: true
-    },
-    graduationYear: {
-      type: Number,
-      min: [1900, 'Year must be after 1900'],
-      max: [2100, 'Year must be before 2100']
-    }
-  },
-  interests: [{
+  experience: {
     type: String,
-    trim: true
-  }],
+    required: false
+  },
   bio: {
     type: String,
-    maxlength: [500, 'Bio cannot be longer than 500 characters'],
-    trim: true
-  },
-  socialLinks: {
-    linkedin: {
-      type: String,
-      trim: true,
-      match: [/^https?:\/\/[\w\-]+(\.[\w\-]+)+[/#?]?.*$/, 'Please provide a valid URL']
-    },
-    github: {
-      type: String,
-      trim: true,
-      match: [/^https?:\/\/[\w\-]+(\.[\w\-]+)+[/#?]?.*$/, 'Please provide a valid URL']
-    }
-  },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-}, { 
-  _id: false,
-  timestamps: true 
+    required: false
+  }
 });
 
 // Preferences Schema
-const PreferencesSchema = new mongoose.Schema({
+const PreferencesSchema = new Schema({
   notifications: {
     email: { type: Boolean, default: true },
-    sms: { type: Boolean, default: false },
-    appointments: { type: Boolean, default: true },
-    results: { type: Boolean, default: true }
+    push: { type: Boolean, default: true }
   },
-  language: { 
-    type: String, 
-    default: 'en',
-    enum: {
-      values: ['en', 'es', 'fr'],
-      message: '{VALUE} is not a supported language'
-    }
+  theme: {
+    type: String,
+    enum: ['light', 'dark', 'system'],
+    default: 'system'
   },
-  theme: { 
-    type: String, 
-    default: 'light',
-    enum: {
-      values: ['light', 'dark', 'system'],
-      message: '{VALUE} is not a valid theme'
-    }
-  },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-}, { 
-  _id: false,
-  timestamps: true 
+  language: {
+    type: String,
+    default: 'en'
+  }
 });
 
 // User Schema
-const UserSchema = new mongoose.Schema({
+const UserSchema = new Schema({
+  firebaseUid: {
+    type: String,
+    unique: true,
+    sparse: true // Allows null values and maintains uniqueness for non-null values
+  },
   name: {
     type: String,
     required: [true, 'Please provide a name'],
@@ -115,8 +58,13 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
+    required: false, // Not required for Firebase auth
     minlength: [8, 'Password must be at least 8 characters']
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
   },
   profile: {
     type: ProfileSchema,
@@ -130,37 +78,20 @@ const UserSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 }, {
   timestamps: true, // Automatically manage createdAt and updatedAt
-  toJSON: { 
-    transform: function(doc, ret) {
-      delete ret.password; // Remove password from JSON
-      return ret;
-    }
-  }
 });
 
 // Hash password before saving
 UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    return next();
+  if (this.password && this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
   }
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error as Error);
-  }
+  next();
 });
 
 // Method to check password
-UserSchema.methods.comparePassword = async function(candidatePassword: string) {
-  try {
-    return await bcrypt.compare(candidatePassword, this.password);
-  } catch (error) {
-    throw new Error('Password comparison failed');
-  }
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  if (!this.password) return false;
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Export the model
-const User = mongoose.models.User || mongoose.model('User', UserSchema);
-export default User; 
+export default mongoose.models.User || mongoose.model('User', UserSchema); 

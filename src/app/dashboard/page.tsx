@@ -10,28 +10,31 @@ import { motion } from 'framer-motion';
 import { Brain, Book, Target, Award, Clock, TrendingUp, History, Video, Upload, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession();
+  const { user, loading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    console.log("Dashboard page - Auth status:", status, "Session:", session ? "exists" : "null");
+    console.log("Dashboard page - Auth status:", user ? "authenticated" : "unauthenticated");
     
     // If not authenticated, redirect to login
-    if (status === 'unauthenticated') {
+    if (!loading && !user) {
       console.log("User is not authenticated, redirecting to login");
-      window.location.href = '/login';
+      router.push('/login');
     }
     
     // If authentication check is complete, stop loading
-    if (status !== 'loading') {
+    if (!loading) {
       setIsLoading(false);
     }
-  }, [status, session]);
+  }, [loading, user, router]);
 
   // Show loading state while checking authentication
-  if (isLoading || status === 'loading') {
+  if (isLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -54,7 +57,7 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-4xl font-bold mb-2">
-                Welcome back, {session?.user?.name?.split(' ')[0]}! 👋
+                Welcome back, {user?.displayName?.split(' ')[0] || 'User'}! 👋
               </h1>
               <p className="text-muted-foreground">
                 Continue your medical learning journey

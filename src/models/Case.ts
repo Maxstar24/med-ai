@@ -7,6 +7,7 @@ export interface ICase extends Document {
   content: string; // Markdown content including tables, images, etc.
   isAIGenerated: boolean;
   createdBy: mongoose.Types.ObjectId | string;
+  userFirebaseUid: string; // Add Firebase UID
   category: string;
   tags: string[];
   mediaUrls: string[]; // URLs to images or other media
@@ -48,6 +49,11 @@ const CaseSchema = new Schema<ICase>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Creator is required'],
+    },
+    userFirebaseUid: {
+      type: String,
+      required: false, // Not required for backward compatibility
+      index: true, // Add index for faster queries
     },
     category: {
       type: String,

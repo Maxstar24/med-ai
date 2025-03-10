@@ -1,25 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { Case } from '@/models/Case';
-import { connectToDatabase } from '@/lib/db';
+import { connectToDatabase } from '@/lib/mongodb';
 import mongoose from 'mongoose';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getAuth } from 'firebase-admin/auth';
+import User from '@/models/User';
 
 // Add dynamic export to ensure the route is always fresh
 export const dynamic = 'force-dynamic';
 
+// Helper function to verify Firebase token
+async function verifyFirebaseToken(request: NextRequest) {
+  try {
+    // Get the Firebase token from the Authorization header
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    
+    // Verify the token
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
+    // Verify Firebase token
+    const decodedToken = await verifyFirebaseToken(req);
+    if (!decodedToken) {
       return NextResponse.json(
         { message: 'You must be logged in to create a case' },
         { status: 401 }
       );
     }
     
+    // Find the user by Firebase UID
     await connectToDatabase();
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
     
     const data = await req.json();
     
@@ -34,7 +59,8 @@ export async function POST(req: NextRequest) {
     // Create the case
     const newCase = await Case.create({
       ...data,
-      createdBy: session.user.id,
+      createdBy: user._id,
+      userFirebaseUid: decodedToken.uid,
     });
     
     return NextResponse.json(
@@ -90,7 +116,7 @@ export async function GET(req: NextRequest) {
         .skip((page - 1) * limit)
         .limit(limit)
         .populate('createdBy', 'name email')
-        .select('title description category tags difficulty specialties isAIGenerated createdAt createdBy');
+        .select('title description category tags difficulty specialties isAIGenerated createdAt createdBy userFirebaseUid');
       
       return NextResponse.json({
         cases,
