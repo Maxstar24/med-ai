@@ -79,27 +79,23 @@ export const authOptions: AuthOptions = {
     async redirect({ url, baseUrl }) {
       console.log('NextAuth redirect callback:', { url, baseUrl });
       
-      // Check for both old and new production URLs in development
-      if (process.env.NODE_ENV === 'development' && 
-          (url.includes('med-ai-app.ondigitalocean.app') || 
-           url.includes('med-ai-nlpr3.ondigitalocean.app'))) {
-        console.log('Redirecting from DigitalOcean URL to local dashboard');
+      // In development, always redirect to the dashboard
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Development mode: redirecting to dashboard');
         return `${baseUrl}/dashboard`;
       }
       
-      // If the URL is relative, prepend the base URL
+      // For production, use normal redirect logic
       if (url.startsWith('/')) {
         console.log('Redirecting to relative URL:', `${baseUrl}${url}`);
         return `${baseUrl}${url}`;
       }
       
-      // If the URL is already absolute and on the same host, return it
       if (new URL(url).origin === baseUrl) {
         console.log('Redirecting to same-origin URL:', url);
         return url;
       }
       
-      // Default to the dashboard
       console.log('Redirecting to default dashboard');
       return `${baseUrl}/dashboard`;
     }

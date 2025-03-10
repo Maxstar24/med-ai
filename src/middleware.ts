@@ -4,18 +4,10 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname, origin } = request.nextUrl;
   
-  // Handle production URL redirects in development
+  // In development, allow all requests to pass through for debugging
   if (process.env.NODE_ENV === 'development') {
-    const url = request.nextUrl.clone();
-    
-    // Check if there's a callback URL parameter that points to production
-    const callbackUrl = url.searchParams.get('callbackUrl');
-    if (callbackUrl && 
-        (callbackUrl.includes('med-ai-app.ondigitalocean.app') || 
-         callbackUrl.includes('med-ai-nlpr3.ondigitalocean.app'))) {
-      url.searchParams.set('callbackUrl', '/dashboard');
-      return NextResponse.redirect(url);
-    }
+    console.log("Development mode: allowing all requests");
+    return NextResponse.next();
   }
   
   // Get the token

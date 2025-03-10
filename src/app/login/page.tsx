@@ -29,14 +29,15 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered");
-  const { status } = useSession();
+  const { data: session, status } = useSession();
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/dashboard');
+      console.log("User is authenticated, redirecting to dashboard");
+      window.location.href = '/dashboard';
     }
-  }, [status, router]);
+  }, [status]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -51,28 +52,20 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      // Get the callback URL from search params
-      let callbackUrl = searchParams.get("callbackUrl") || '/dashboard';
-      
-      // Check if we're in development and the callback URL is for production
-      if (process.env.NODE_ENV === 'development' && 
-          (callbackUrl.includes('med-ai-app.ondigitalocean.app') || 
-           callbackUrl.includes('med-ai-nlpr3.ondigitalocean.app'))) {
-        // Replace the production domain with localhost
-        callbackUrl = '/dashboard';
-      }
-
+      // Simplify the login process - always redirect to dashboard
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
-        redirect: true,
-        callbackUrl: callbackUrl
+        redirect: false,
       });
 
-      // Note: The code below won't execute if redirect is true
       if (result?.error) {
         setError(result.error);
         setLoading(false);
+      } else {
+        console.log("Login successful, redirecting to dashboard");
+        // Force a hard navigation to the dashboard
+        window.location.href = '/dashboard';
       }
     } catch (err) {
       setError("Failed to sign in");
