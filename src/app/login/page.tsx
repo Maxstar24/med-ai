@@ -29,17 +29,19 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered");
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const callbackUrl = searchParams.get("callbackUrl") || '/dashboard';
 
   // Redirect if already authenticated
   useEffect(() => {
+    console.log("Login page - Auth status:", status, "Callback URL:", callbackUrl);
+    
     if (status === 'authenticated') {
-      console.log("User is already authenticated, redirecting to dashboard");
+      console.log("User is already authenticated, redirecting to:", callbackUrl);
       // Use window.location for a hard redirect
-      window.location.href = '/dashboard';
+      window.location.href = callbackUrl;
     }
-  }, [status]);
+  }, [status, callbackUrl]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -54,6 +56,7 @@ function LoginContent() {
     setLoading(true);
 
     try {
+      console.log("Attempting login with credentials");
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
@@ -62,14 +65,16 @@ function LoginContent() {
       });
 
       if (result?.error) {
+        console.log("Login error:", result.error);
         setError(result.error);
         setLoading(false);
       } else {
-        console.log("Login successful, redirecting to dashboard");
+        console.log("Login successful, redirecting to:", callbackUrl);
         // Use window.location for a hard redirect
         window.location.href = callbackUrl;
       }
     } catch (err) {
+      console.error("Login exception:", err);
       setError("Failed to sign in");
       setLoading(false);
     }
@@ -81,7 +86,7 @@ function LoginContent() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Already logged in. Redirecting to dashboard...</p>
+          <p className="mt-4 text-muted-foreground">Already logged in. Redirecting to {callbackUrl}...</p>
         </div>
       </div>
     );

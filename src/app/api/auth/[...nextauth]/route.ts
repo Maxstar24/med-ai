@@ -77,22 +77,29 @@ export const authOptions: AuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
+      console.log("NextAuth redirect called with URL:", url);
+      
       // Handle sign out - always redirect to home page
       if (url.includes('/signout') || url.includes('/api/auth/signout')) {
+        console.log("Sign out detected, redirecting to home page");
         return '/';
       }
       
-      // If URL is just the domain without a path, redirect to dashboard
-      if (url === baseUrl || url === `${baseUrl}/`) {
-        return '/dashboard';
+      // If the URL is the login page with a callback to dashboard, return the callback URL
+      if (url.includes('/login') && url.includes('callbackUrl')) {
+        const callbackUrl = new URL(url).searchParams.get('callbackUrl');
+        console.log("Login with callback detected, redirecting to:", callbackUrl);
+        return callbackUrl || '/dashboard';
       }
       
       // Handle relative URLs
       if (url.startsWith('/')) {
+        console.log("Relative URL detected, returning:", url);
         return url;
       }
       
       // Default redirect to dashboard
+      console.log("Default case, redirecting to dashboard");
       return '/dashboard';
     }
   },

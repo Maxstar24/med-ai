@@ -166,11 +166,6 @@ const components: { title: string; href: string; description: string }[] = [
     description: "AI-powered responses for medical concepts and clinical guidelines.",
   },
   {
-    title: "Medical Cases",
-    href: "/cases/browse",
-    description: "Browse and learn from interactive medical case studies.",
-  },
-  {
     title: "Practice Mode",
     href: "/practice",
     description: "Duolingo-style quizzes with adaptive difficulty and rewards.",

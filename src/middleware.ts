@@ -6,6 +6,7 @@ export async function middleware(request: NextRequest) {
   
   // Skip middleware for API routes and auth-related routes
   if (pathname.startsWith('/api/') || pathname.includes('/auth/')) {
+    console.log("Middleware: Skipping for API or auth route:", pathname);
     return NextResponse.next();
   }
   
@@ -17,6 +18,7 @@ export async function middleware(request: NextRequest) {
   
   // Check if the user is authenticated
   const isAuthenticated = !!token;
+  console.log("Middleware: Authentication status for", pathname, ":", isAuthenticated);
   
   // Public routes that don't require authentication
   const publicRoutes = ['/', '/login', '/signup', '/reset-password'];
@@ -32,19 +34,23 @@ export async function middleware(request: NextRequest) {
   if (isPublicRoute) {
     // If the user is authenticated and trying to access login/signup, redirect to dashboard
     if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
+      console.log("Middleware: Authenticated user trying to access login/signup, redirecting to dashboard");
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
+    console.log("Middleware: Public route, allowing access:", pathname);
     return NextResponse.next();
   }
   
   // If the user is not authenticated and trying to access a protected route, redirect to login
   if (!isAuthenticated) {
+    console.log("Middleware: Unauthenticated user trying to access protected route, redirecting to login");
     const url = new URL('/login', request.url);
-    url.searchParams.set('callbackUrl', '/dashboard');
+    url.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(url);
   }
   
   // Allow access to all other routes for authenticated users
+  console.log("Middleware: Authenticated user accessing protected route, allowing access");
   return NextResponse.next();
 }
 
