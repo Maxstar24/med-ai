@@ -79,10 +79,19 @@ export const authOptions: AuthOptions = {
     async redirect({ url, baseUrl }) {
       console.log('NextAuth redirect callback:', { url, baseUrl });
       
-      // In development, always redirect to the dashboard
+      // Check if this is a sign out redirect
+      if (url === '/' || url.includes('/signout') || url.includes('/api/auth/signout')) {
+        console.log('Sign out detected, redirecting to home page');
+        return '/';
+      }
+      
+      // In development, redirect to dashboard for other cases
       if (process.env.NODE_ENV === 'development') {
-        console.log('Development mode: redirecting to dashboard');
-        return '/dashboard';
+        // Only redirect to dashboard if not signing out
+        if (!url.includes('/signout')) {
+          console.log('Development mode: redirecting to dashboard');
+          return '/dashboard';
+        }
       }
       
       // For production, use normal redirect logic
