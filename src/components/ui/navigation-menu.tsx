@@ -245,7 +245,16 @@ export function MainNav() {
 
             <NavigationMenuItem>
               <button
-                onClick={() => signOut({ callbackUrl: '/' })}
+                onClick={() => {
+                  console.log("Sign out clicked");
+                  // Use a direct approach for sign out that works in both dev and prod
+                  signOut({ 
+                    redirect: false 
+                  }).then(() => {
+                    console.log("Sign out successful, redirecting to home page");
+                    window.location.href = '/';
+                  });
+                }}
                 className={navigationMenuTriggerStyle()}
               >
                 Sign Out
