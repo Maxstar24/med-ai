@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { redirect, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,13 +50,30 @@ const staggerContainer = {
   }
 };
 
+// Get time of day greeting
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+};
+
+// Define the Case type
+interface Case {
+  id: string;
+  title: string;
+  category: string;
+  description?: string;
+  difficulty?: string;
+}
+
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [recentCases, setRecentCases] = useState([]);
+  const [recentCases, setRecentCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Redirect if not authenticated
+  // Authentication effect - must be the first useEffect
   useEffect(() => {
     console.log("Dashboard auth status:", status);
     if (status === 'unauthenticated') {
@@ -65,19 +82,7 @@ export default function DashboardPage() {
     }
   }, [status]);
 
-  // If still loading session or not authenticated, show loading
-  if (status === 'loading' || status === 'unauthenticated') {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Fetch recent cases
+  // Data fetching effect - must be the second useEffect
   useEffect(() => {
     const fetchRecentCases = async () => {
       try {
@@ -96,13 +101,17 @@ export default function DashboardPage() {
     }
   }, [status]);
 
-  // Get time of day greeting
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
+  // If still loading session or not authenticated, show loading
+  if (status === 'loading' || status === 'unauthenticated') {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -142,461 +151,481 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* Stats Section */}
-          <motion.div 
-            variants={fadeIn}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
-          >
-            <Card className="p-6 border-border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-full">
-                  <Target className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Daily Goal</p>
-                  <p className="text-2xl font-bold">75%</p>
-                </div>
-              </div>
-              <Progress value={75} className="mt-4" />
-            </Card>
-
-            <Card className="p-6 border-border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-full">
-                  <Award className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Current Streak</p>
-                  <p className="text-2xl font-bold">7 days</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6 border-border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-full">
-                  <Clock className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Study Time</p>
-                  <p className="text-2xl font-bold">2.5h</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6 border-border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-full">
-                  <TrendingUp className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Progress</p>
-                  <p className="text-2xl font-bold">+15%</p>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column */}
-            <motion.div 
-              variants={fadeIn}
-              className="lg:col-span-2 space-y-6"
-            >
-              {/* Tabs Section */}
-              <Card className="border-border bg-card">
-                <CardHeader>
-                  <CardTitle>Learning Resources</CardTitle>
-                  <CardDescription>Access your learning materials and tools</CardDescription>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <motion.div variants={fadeIn}>
+              <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center">
+                    <Brain className="mr-2 h-5 w-5 text-blue-500" />
+                    Learning Progress
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Tabs defaultValue="features" className="w-full">
-                    <TabsList className="grid grid-cols-3 mb-4">
-                      <TabsTrigger value="features">Key Features</TabsTrigger>
-                      <TabsTrigger value="recent">Recent Cases</TabsTrigger>
-                      <TabsTrigger value="recommended">Recommended</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="features" className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Link href="/ai-learning" className="block">
-                          <Card className="p-6 hover:shadow-lg transition-shadow h-full border-border bg-card">
-                            <div className="flex items-center gap-4 mb-4">
-                              <div className="p-3 bg-primary/10 rounded-full">
-                                <Brain className="w-6 h-6 text-primary" />
-                              </div>
-                              <h2 className="text-xl font-semibold">AI Learning Assistant</h2>
-                            </div>
-                            <p className="text-muted-foreground mb-4">
-                              Get instant answers to your medical questions and engage in case-based learning.
-                            </p>
-                            <Button className="w-full">Start Learning</Button>
-                          </Card>
-                        </Link>
+                  <div className="text-3xl font-bold mb-2">68%</div>
+                  <Progress value={68} className="h-2" />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    17 of 25 modules completed
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
 
-                        <Link href="/quizzes" className="block">
-                          <Card className="p-6 hover:shadow-lg transition-shadow h-full border-border bg-card">
-                            <div className="flex items-center gap-4 mb-4">
-                              <div className="p-3 bg-primary/10 rounded-full">
-                                <Book className="w-6 h-6 text-primary" />
-                              </div>
-                              <h2 className="text-xl font-semibold">Practice Quizzes</h2>
-                            </div>
-                            <p className="text-muted-foreground mb-4">
-                              Test your knowledge with our adaptive quizzes and track your progress.
-                            </p>
-                            <Button className="w-full">Take a Quiz</Button>
-                          </Card>
-                        </Link>
+            <motion.div variants={fadeIn}>
+              <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center">
+                    <Book className="mr-2 h-5 w-5 text-green-500" />
+                    Cases Completed
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold mb-2">24</div>
+                  <Progress value={48} className="h-2" />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    24 of 50 cases completed
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
 
-                        <Link href="/cases/browse" className="block">
-                          <Card className="p-6 hover:shadow-lg transition-shadow h-full border-border bg-card">
-                            <div className="flex items-center gap-4 mb-4">
-                              <div className="p-3 bg-primary/10 rounded-full">
-                                <BookOpen className="w-6 h-6 text-primary" />
-                              </div>
-                              <h2 className="text-xl font-semibold">Medical Cases</h2>
-                            </div>
-                            <p className="text-muted-foreground mb-4">
-                              Browse through real medical cases and enhance your diagnostic skills.
-                            </p>
-                            <Button className="w-full">Browse Cases</Button>
-                          </Card>
-                        </Link>
+            <motion.div variants={fadeIn}>
+              <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center">
+                    <Target className="mr-2 h-5 w-5 text-red-500" />
+                    Accuracy Rate
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold mb-2">82%</div>
+                  <Progress value={82} className="h-2" />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Above average by 7%
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
 
-                        <Link href="/quizzes/history" className="block">
-                          <Card className="p-6 hover:shadow-lg transition-shadow h-full border-border bg-card">
-                            <div className="flex items-center gap-4 mb-4">
-                              <div className="p-3 bg-primary/10 rounded-full">
-                                <History className="w-6 h-6 text-primary" />
-                              </div>
-                              <h2 className="text-xl font-semibold">Quiz History</h2>
-                            </div>
-                            <p className="text-muted-foreground mb-4">
-                              Review your past quiz attempts and track your improvement over time.
-                            </p>
-                            <Button className="w-full">View History</Button>
-                          </Card>
-                        </Link>
+            <motion.div variants={fadeIn}>
+              <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center">
+                    <Award className="mr-2 h-5 w-5 text-amber-500" />
+                    Achievements
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold mb-2">7</div>
+                  <Progress value={35} className="h-2" />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    7 of 20 badges earned
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+
+          {/* Main Content Tabs */}
+          <Tabs defaultValue="overview" className="mb-8">
+            <TabsList className="mb-6">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="learning">Learning Path</TabsTrigger>
+              <TabsTrigger value="resources">Resources</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Recent Activity */}
+                <motion.div variants={fadeIn} className="lg:col-span-2">
+                  <Card className="border-none shadow-md h-full">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <History className="mr-2 h-5 w-5 text-primary" />
+                        Recent Activity
+                      </CardTitle>
+                      <CardDescription>Your latest learning activities</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-start space-x-4 p-3 rounded-lg bg-muted/50">
+                        <div className="bg-primary/10 p-2 rounded-full">
+                          <FileText className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Completed Case: Acute Appendicitis</h4>
+                            <Badge variant="outline">Case</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">Diagnosed correctly with 92% accuracy</p>
+                          <p className="text-xs text-muted-foreground mt-1">2 hours ago</p>
+                        </div>
                       </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="recent">
+
+                      <div className="flex items-start space-x-4 p-3 rounded-lg bg-muted/50">
+                        <div className="bg-primary/10 p-2 rounded-full">
+                          <Video className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Watched: Advanced ECG Interpretation</h4>
+                            <Badge variant="outline">Video</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">Completed 45-minute lecture</p>
+                          <p className="text-xs text-muted-foreground mt-1">Yesterday</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-4 p-3 rounded-lg bg-muted/50">
+                        <div className="bg-primary/10 p-2 rounded-full">
+                          <CheckCircle2 className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Completed Quiz: Respiratory Disorders</h4>
+                            <Badge variant="outline">Quiz</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">Scored 85% (17/20 correct)</p>
+                          <p className="text-xs text-muted-foreground mt-1">2 days ago</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                        <Link href="/activity">
+                          View all activity <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+
+                {/* Recent Cases */}
+                <motion.div variants={fadeIn}>
+                  <Card className="border-none shadow-md h-full">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <Book className="mr-2 h-5 w-5 text-primary" />
+                        Recent Cases
+                      </CardTitle>
+                      <CardDescription>Continue where you left off</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
                       {loading ? (
-                        <div className="space-y-4">
-                          {[1, 2, 3].map((i) => (
-                            <Card key={i} className="p-4 border-border bg-card">
-                              <div className="flex gap-4">
-                                <div className="w-16 h-16 bg-muted rounded-md animate-pulse"></div>
-                                <div className="flex-1 space-y-2">
-                                  <div className="h-4 bg-muted rounded animate-pulse"></div>
-                                  <div className="h-3 bg-muted rounded w-3/4 animate-pulse"></div>
-                                  <div className="flex gap-2">
-                                    <div className="h-6 w-16 bg-muted rounded-full animate-pulse"></div>
-                                    <div className="h-6 w-16 bg-muted rounded-full animate-pulse"></div>
-                                  </div>
-                                </div>
-                              </div>
-                            </Card>
-                          ))}
+                        <div className="flex justify-center py-6">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
                         </div>
                       ) : recentCases.length > 0 ? (
-                        <div className="space-y-4">
-                          {recentCases.map((caseItem: any) => (
-                            <Link href={`/cases/${caseItem._id}`} key={caseItem._id}>
-                              <Card className="p-4 hover:shadow-md transition-all border-border bg-card">
-                                <div className="flex gap-4">
-                                  <div className="p-2 rounded-lg bg-primary/10 h-16 w-16 flex items-center justify-center">
-                                    <BookOpen className="h-8 w-8 text-primary" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <h3 className="font-semibold">{caseItem.title}</h3>
-                                    <p className="text-sm text-muted-foreground line-clamp-1">{caseItem.description}</p>
-                                    <div className="flex gap-2 mt-2">
-                                      <Badge variant="secondary">{caseItem.category}</Badge>
-                                      <Badge variant="outline" className={
-                                        caseItem.difficulty === 'beginner' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                                        caseItem.difficulty === 'intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
-                                        'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                                      }>
-                                        {caseItem.difficulty.charAt(0).toUpperCase() + caseItem.difficulty.slice(1)}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                </div>
-                              </Card>
-                            </Link>
-                          ))}
-                          <div className="text-center">
-                            <Button asChild variant="outline">
-                              <Link href="/cases/browse">
-                                View All Cases <ArrowRight className="ml-2 h-4 w-4" />
+                        recentCases.map((caseItem, index) => (
+                          <div key={index} className="flex flex-col space-y-2 p-3 rounded-lg bg-muted/50">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium">{caseItem.title}</h4>
+                              <Badge>{caseItem.category}</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{caseItem.description?.substring(0, 60)}...</p>
+                            <Button size="sm" variant="outline" asChild>
+                              <Link href={`/cases/${caseItem.id}`}>
+                                Continue Case
                               </Link>
                             </Button>
                           </div>
-                        </div>
+                        ))
                       ) : (
-                        <div className="text-center p-8">
-                          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="text-lg font-medium mb-2">No cases yet</h3>
-                          <p className="text-muted-foreground mb-4">Start exploring medical cases to enhance your knowledge</p>
-                          <Button asChild>
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>No recent cases found</p>
+                          <Button variant="outline" size="sm" className="mt-2" asChild>
                             <Link href="/cases/browse">Browse Cases</Link>
                           </Button>
                         </div>
                       )}
-                    </TabsContent>
-                    
-                    <TabsContent value="recommended">
-                      <div className="space-y-4">
-                        <Card className="p-4 hover:shadow-md transition-all border-border bg-card">
-                          <div className="flex gap-4">
-                            <div className="p-2 rounded-lg bg-blue-500/10 h-16 w-16 flex items-center justify-center">
-                              <Lightbulb className="h-8 w-8 text-blue-500" />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold">Cardiovascular Examination Techniques</h3>
-                              <p className="text-sm text-muted-foreground">Recommended based on your recent activity</p>
-                              <div className="flex gap-2 mt-2">
-                                <Badge variant="secondary">Cardiology</Badge>
-                                <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                                  Beginner
-                                </Badge>
-                              </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                        <Link href="/cases/browse">
+                          Browse all cases <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="learning">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <motion.div variants={fadeIn} className="lg:col-span-2">
+                  <Card className="border-none shadow-md">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <TrendingUp className="mr-2 h-5 w-5 text-primary" />
+                        Your Learning Path
+                      </CardTitle>
+                      <CardDescription>Personalized curriculum based on your progress</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        <div className="relative pl-8 before:absolute before:left-3 before:top-0 before:h-full before:w-[2px] before:bg-muted">
+                          <div className="absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
+                            <CheckCircle2 className="h-4 w-4" />
+                          </div>
+                          <div className="space-y-2 pb-8">
+                            <h4 className="font-medium">Fundamentals of Clinical Diagnosis</h4>
+                            <p className="text-sm text-muted-foreground">Completed on May 15, 2023</p>
+                            <div className="flex items-center">
+                              <Badge variant="secondary" className="mr-2">Module</Badge>
+                              <Badge variant="outline">100% Complete</Badge>
                             </div>
                           </div>
-                        </Card>
-                        
-                        <Card className="p-4 hover:shadow-md transition-all border-border bg-card">
-                          <div className="flex gap-4">
-                            <div className="p-2 rounded-lg bg-purple-500/10 h-16 w-16 flex items-center justify-center">
-                              <Lightbulb className="h-8 w-8 text-purple-500" />
+                        </div>
+
+                        <div className="relative pl-8 before:absolute before:left-3 before:top-0 before:h-full before:w-[2px] before:bg-muted">
+                          <div className="absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
+                            <Activity className="h-4 w-4" />
+                          </div>
+                          <div className="space-y-2 pb-8">
+                            <h4 className="font-medium">Advanced Cardiac Assessment</h4>
+                            <p className="text-sm text-muted-foreground">In progress - 68% complete</p>
+                            <Progress value={68} className="h-2 mt-2 mb-2" />
+                            <div className="flex items-center">
+                              <Badge variant="secondary" className="mr-2">Module</Badge>
+                              <Badge variant="outline">Current</Badge>
                             </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold">Neurological Differential Diagnosis</h3>
-                              <p className="text-sm text-muted-foreground">Popular among students in your field</p>
-                              <div className="flex gap-2 mt-2">
-                                <Badge variant="secondary">Neurology</Badge>
-                                <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                                  Intermediate
-                                </Badge>
-                              </div>
+                            <Button size="sm" className="mt-2" asChild>
+                              <Link href="/learning/cardiac">Continue Learning</Link>
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="relative pl-8 before:absolute before:left-3 before:top-0 before:h-full before:w-[2px] before:bg-muted">
+                          <div className="absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                            <Lightbulb className="h-4 w-4" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="font-medium">Neurological Examination Techniques</h4>
+                            <p className="text-sm text-muted-foreground">Upcoming module</p>
+                            <div className="flex items-center">
+                              <Badge variant="secondary" className="mr-2">Module</Badge>
+                              <Badge variant="outline">Locked</Badge>
                             </div>
                           </div>
-                        </Card>
-                        
-                        <Card className="p-4 hover:shadow-md transition-all border-border bg-card">
-                          <div className="flex gap-4">
-                            <div className="p-2 rounded-lg bg-green-500/10 h-16 w-16 flex items-center justify-center">
-                              <Lightbulb className="h-8 w-8 text-green-500" />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold">Pharmacology of Antibiotics</h3>
-                              <p className="text-sm text-muted-foreground">Trending topic in medical education</p>
-                              <div className="flex gap-2 mt-2">
-                                <Badge variant="secondary">Pharmacy</Badge>
-                                <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                                  Beginner
-                                </Badge>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                        <Link href="/learning">
+                          View full curriculum <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+
+                <motion.div variants={fadeIn}>
+                  <Card className="border-none shadow-md">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <Calendar className="mr-2 h-5 w-5 text-primary" />
+                        Upcoming Deadlines
+                      </CardTitle>
+                      <CardDescription>Stay on track with your learning goals</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-start space-x-4 p-3 rounded-lg bg-muted/50">
+                        <div className="bg-amber-500/10 p-2 rounded-full">
+                          <Clock className="h-5 w-5 text-amber-500" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Cardiac Assessment Quiz</h4>
+                          <p className="text-sm text-muted-foreground mt-1">Due in 2 days</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-4 p-3 rounded-lg bg-muted/50">
+                        <div className="bg-blue-500/10 p-2 rounded-full">
+                          <BookOpen className="h-5 w-5 text-blue-500" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Case Study: Respiratory Distress</h4>
+                          <p className="text-sm text-muted-foreground mt-1">Due in 5 days</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-4 p-3 rounded-lg bg-muted/50">
+                        <div className="bg-green-500/10 p-2 rounded-full">
+                          <BarChart3 className="h-5 w-5 text-green-500" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Monthly Progress Review</h4>
+                          <p className="text-sm text-muted-foreground mt-1">Due in 1 week</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                        <Link href="/calendar">
+                          View calendar <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="resources">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <motion.div variants={fadeIn}>
+                  <Card className="border-none shadow-md h-full">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <Video className="mr-2 h-5 w-5 text-primary" />
+                        Video Lectures
+                      </CardTitle>
+                      <CardDescription>Curated educational videos</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="group relative rounded-lg overflow-hidden">
+                        <div className="aspect-video bg-muted relative">
+                          <Image 
+                            src="/images/video-thumbnail-1.jpg" 
+                            alt="ECG Interpretation" 
+                            fill 
+                            className="object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="secondary" size="sm">
+                              Watch Now
+                            </Button>
                           </div>
-                        </Card>
+                        </div>
+                        <h4 className="font-medium mt-2">Advanced ECG Interpretation</h4>
+                        <p className="text-sm text-muted-foreground">45 min • Dr. Sarah Chen</p>
                       </div>
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
 
-              {/* Quick Actions */}
-              <Card className="border-border bg-card">
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>Frequently used tools and shortcuts</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Button className="flex flex-col h-auto py-4 gap-2" asChild>
-                      <Link href="/quizzes">
-                        <Plus className="h-5 w-5" />
-                        <span>New Quiz</span>
-                      </Link>
-                    </Button>
-                    
-                    <Button className="flex flex-col h-auto py-4 gap-2" variant="outline" asChild>
-                      <Link href="/cases/create">
-                        <FileText className="h-5 w-5" />
-                        <span>Create Case</span>
-                      </Link>
-                    </Button>
-                    
-                    <Button className="flex flex-col h-auto py-4 gap-2" variant="outline" asChild>
-                      <Link href="/ai-learning">
-                        <Brain className="h-5 w-5" />
-                        <span>AI Chat</span>
-                      </Link>
-                    </Button>
-                    
-                    <Button className="flex flex-col h-auto py-4 gap-2" variant="outline" asChild>
-                      <Link href="/cases/browse">
-                        <BookOpen className="h-5 w-5" />
-                        <span>Browse Cases</span>
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+                      <div className="group relative rounded-lg overflow-hidden">
+                        <div className="aspect-video bg-muted relative">
+                          <Image 
+                            src="/images/video-thumbnail-2.jpg" 
+                            alt="Respiratory Assessment" 
+                            fill 
+                            className="object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="secondary" size="sm">
+                              Watch Now
+                            </Button>
+                          </div>
+                        </div>
+                        <h4 className="font-medium mt-2">Respiratory Assessment Techniques</h4>
+                        <p className="text-sm text-muted-foreground">38 min • Dr. Michael Johnson</p>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                        <Link href="/resources/videos">
+                          Browse all videos <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
 
-            {/* Right Column */}
-            <motion.div 
-              variants={fadeIn}
-              className="space-y-6"
-            >
-              {/* Study Schedule */}
-              <Card className="border-border bg-card">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">Today's Schedule</CardTitle>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href="/schedule">View All</Link>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 h-10 w-10 flex items-center justify-center shrink-0">
-                        <Calendar className="h-5 w-5 text-primary" />
+                <motion.div variants={fadeIn}>
+                  <Card className="border-none shadow-md h-full">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <BookOpen className="mr-2 h-5 w-5 text-primary" />
+                        Clinical Guidelines
+                      </CardTitle>
+                      <CardDescription>Evidence-based practice resources</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="p-4 rounded-lg border bg-card">
+                        <h4 className="font-medium">ACLS Guidelines 2023</h4>
+                        <p className="text-sm text-muted-foreground mt-1">American Heart Association</p>
+                        <Button variant="outline" size="sm" className="mt-2">
+                          Download PDF
+                        </Button>
                       </div>
-                      <div>
-                        <p className="font-medium">Cardiology Review</p>
-                        <p className="text-sm text-muted-foreground">9:00 AM - 10:30 AM</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 h-10 w-10 flex items-center justify-center shrink-0">
-                        <Book className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Pharmacology Quiz</p>
-                        <p className="text-sm text-muted-foreground">1:00 PM - 2:00 PM</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 h-10 w-10 flex items-center justify-center shrink-0">
-                        <Video className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Anatomy Video Lecture</p>
-                        <p className="text-sm text-muted-foreground">4:00 PM - 5:30 PM</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
-              {/* Activity Feed */}
-              <Card className="border-border bg-card">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">Recent Activity</CardTitle>
-                    <Button variant="ghost" size="sm">View All</Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 relative">
-                    <div className="absolute top-0 bottom-0 left-5 w-px bg-border"></div>
-                    
-                    <div className="flex gap-3 relative">
-                      <div className="p-2 rounded-full bg-green-500/10 h-10 w-10 flex items-center justify-center z-10">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      <div className="p-4 rounded-lg border bg-card">
+                        <h4 className="font-medium">Sepsis Management Protocol</h4>
+                        <p className="text-sm text-muted-foreground mt-1">Surviving Sepsis Campaign</p>
+                        <Button variant="outline" size="sm" className="mt-2">
+                          Download PDF
+                        </Button>
                       </div>
-                      <div>
-                        <p className="font-medium">Completed Quiz</p>
-                        <p className="text-sm text-muted-foreground">Pharmacology Basics • 85% Score</p>
-                        <p className="text-xs text-muted-foreground">2 hours ago</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3 relative">
-                      <div className="p-2 rounded-full bg-blue-500/10 h-10 w-10 flex items-center justify-center z-10">
-                        <BookOpen className="h-5 w-5 text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Viewed Case</p>
-                        <p className="text-sm text-muted-foreground">Atropine Antidotes</p>
-                        <p className="text-xs text-muted-foreground">Yesterday</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3 relative">
-                      <div className="p-2 rounded-full bg-purple-500/10 h-10 w-10 flex items-center justify-center z-10">
-                        <Brain className="h-5 w-5 text-purple-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium">AI Learning Session</p>
-                        <p className="text-sm text-muted-foreground">Discussed Neurological Disorders</p>
-                        <p className="text-xs text-muted-foreground">2 days ago</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
-              {/* Progress Summary */}
-              <Card className="border-border bg-card">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Learning Progress</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Cardiology</span>
-                        <span className="text-sm text-muted-foreground">65%</span>
+                      <div className="p-4 rounded-lg border bg-card">
+                        <h4 className="font-medium">Stroke Assessment & Management</h4>
+                        <p className="text-sm text-muted-foreground mt-1">American Stroke Association</p>
+                        <Button variant="outline" size="sm" className="mt-2">
+                          Download PDF
+                        </Button>
                       </div>
-                      <Progress value={65} className="h-2" />
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Pharmacology</span>
-                        <span className="text-sm text-muted-foreground">85%</span>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                        <Link href="/resources/guidelines">
+                          View all guidelines <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+
+                <motion.div variants={fadeIn}>
+                  <Card className="border-none shadow-md h-full">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <Upload className="mr-2 h-5 w-5 text-primary" />
+                        Upload Resources
+                      </CardTitle>
+                      <CardDescription>Share your own learning materials</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                        <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                        <h4 className="font-medium">Drag & drop files here</h4>
+                        <p className="text-sm text-muted-foreground mt-1 mb-4">
+                          Support for PDF, DOCX, PPTX, JPG, PNG
+                        </p>
+                        <Button>
+                          <Plus className="mr-2 h-4 w-4" /> Upload File
+                        </Button>
                       </div>
-                      <Progress value={85} className="h-2" />
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Neurology</span>
-                        <span className="text-sm text-muted-foreground">40%</span>
+
+                      <div className="mt-6">
+                        <h4 className="font-medium mb-2">Recently Uploaded</h4>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                            <div className="flex items-center">
+                              <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span className="text-sm">Clinical_Notes_2023.pdf</span>
+                            </div>
+                            <Badge variant="outline">PDF</Badge>
+                          </div>
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                            <div className="flex items-center">
+                              <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span className="text-sm">Cardiac_Case_Study.docx</span>
+                            </div>
+                            <Badge variant="outline">DOCX</Badge>
+                          </div>
+                        </div>
                       </div>
-                      <Progress value={40} className="h-2" />
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Anatomy</span>
-                        <span className="text-sm text-muted-foreground">70%</span>
-                      </div>
-                      <Progress value={70} className="h-2" />
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link href="/progress">
-                      <BarChart3 className="mr-2 h-4 w-4" />
-                      Detailed Analytics
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            </motion.div>
-          </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                        <Link href="/resources/my-uploads">
+                          Manage uploads <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </motion.div>
       </div>
     </div>
