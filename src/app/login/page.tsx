@@ -55,7 +55,9 @@ function LoginContent() {
       let callbackUrl = searchParams.get("callbackUrl") || '/dashboard';
       
       // Check if we're in development and the callback URL is for production
-      if (process.env.NODE_ENV === 'development' && callbackUrl.includes('digitalocean.app')) {
+      if (process.env.NODE_ENV === 'development' && 
+          (callbackUrl.includes('med-ai-app.ondigitalocean.app') || 
+           callbackUrl.includes('med-ai-nlpr3.ondigitalocean.app'))) {
         // Replace the production domain with localhost
         callbackUrl = '/dashboard';
       }

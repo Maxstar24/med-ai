@@ -79,8 +79,10 @@ export const authOptions: AuthOptions = {
     async redirect({ url, baseUrl }) {
       console.log('NextAuth redirect callback:', { url, baseUrl });
       
-      // If the URL is an absolute URL and contains digitalocean.app in development, redirect to dashboard
-      if (process.env.NODE_ENV === 'development' && url.includes('digitalocean.app')) {
+      // Check for both old and new production URLs in development
+      if (process.env.NODE_ENV === 'development' && 
+          (url.includes('med-ai-app.ondigitalocean.app') || 
+           url.includes('med-ai-nlpr3.ondigitalocean.app'))) {
         console.log('Redirecting from DigitalOcean URL to local dashboard');
         return `${baseUrl}/dashboard`;
       }
