@@ -4,6 +4,11 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Skip middleware for API routes and auth-related routes
+  if (pathname.startsWith('/api/') || pathname.includes('/auth/')) {
+    return NextResponse.next();
+  }
+  
   // Get the token
   const token = await getToken({ 
     req: request, 

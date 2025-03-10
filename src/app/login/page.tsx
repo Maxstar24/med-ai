@@ -35,9 +35,11 @@ function LoginContent() {
   // Redirect if already authenticated
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/dashboard');
+      console.log("User is already authenticated, redirecting to dashboard");
+      // Use window.location for a hard redirect
+      window.location.href = '/dashboard';
     }
-  }, [status, router]);
+  }, [status]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -63,7 +65,9 @@ function LoginContent() {
         setError(result.error);
         setLoading(false);
       } else {
-        router.push(callbackUrl);
+        console.log("Login successful, redirecting to dashboard");
+        // Use window.location for a hard redirect
+        window.location.href = callbackUrl;
       }
     } catch (err) {
       setError("Failed to sign in");
