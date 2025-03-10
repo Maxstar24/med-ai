@@ -250,7 +250,7 @@ export function MainNav() {
 
             <NavigationMenuItem>
               <button
-                onClick={() => signOut()}
+                onClick={() => signOut({ callbackUrl: '/' })}
                 className={navigationMenuTriggerStyle()}
               >
                 Sign Out

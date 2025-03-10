@@ -82,7 +82,7 @@ export const authOptions: AuthOptions = {
       // In development, always redirect to the dashboard
       if (process.env.NODE_ENV === 'development') {
         console.log('Development mode: redirecting to dashboard');
-        return `${baseUrl}/dashboard`;
+        return '/dashboard';
       }
       
       // For production, use normal redirect logic
@@ -91,11 +91,18 @@ export const authOptions: AuthOptions = {
         return `${baseUrl}${url}`;
       }
       
-      if (new URL(url).origin === baseUrl) {
-        console.log('Redirecting to same-origin URL:', url);
-        return url;
+      // Check if the URL is from the same origin
+      try {
+        const urlOrigin = new URL(url).origin;
+        if (urlOrigin === baseUrl) {
+          console.log('Redirecting to same-origin URL:', url);
+          return url;
+        }
+      } catch (error) {
+        console.error('Error parsing URL:', error);
       }
       
+      // Default redirect to dashboard
       console.log('Redirecting to default dashboard');
       return `${baseUrl}/dashboard`;
     }
