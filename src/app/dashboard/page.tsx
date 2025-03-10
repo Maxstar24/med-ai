@@ -9,13 +9,37 @@ import { Progress } from '@/components/ui/progress';
 import { motion } from 'framer-motion';
 import { Brain, Book, Target, Award, Clock, TrendingUp, History, Video, Upload, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Redirect if not authenticated
-  if (status === 'unauthenticated') {
-    redirect('/login');
+  useEffect(() => {
+    console.log("Dashboard page - Auth status:", status, "Session:", session ? "exists" : "null");
+    
+    // If not authenticated, redirect to login
+    if (status === 'unauthenticated') {
+      console.log("User is not authenticated, redirecting to login");
+      window.location.href = '/login';
+    }
+    
+    // If authentication check is complete, stop loading
+    if (status !== 'loading') {
+      setIsLoading(false);
+    }
+  }, [status, session]);
+
+  // Show loading state while checking authentication
+  if (isLoading || status === 'loading') {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

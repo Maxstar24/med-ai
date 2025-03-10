@@ -34,14 +34,14 @@ function LoginContent() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    console.log("Login page - Auth status:", status, "Callback URL:", callbackUrl);
+    console.log("Login page - Auth status:", status, "Session:", session ? "exists" : "null", "Callback URL:", callbackUrl);
     
-    if (status === 'authenticated') {
-      console.log("User is already authenticated, redirecting to:", callbackUrl);
-      // Use window.location for a hard redirect
-      window.location.href = callbackUrl;
+    if (status === 'authenticated' && session) {
+      console.log("User is already authenticated, redirecting to dashboard");
+      // Force a hard redirect to dashboard regardless of callback
+      window.location.href = '/dashboard';
     }
-  }, [status, callbackUrl]);
+  }, [status, session]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -60,8 +60,7 @@ function LoginContent() {
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
-        redirect: false,
-        callbackUrl
+        redirect: false
       });
 
       if (result?.error) {
@@ -69,9 +68,9 @@ function LoginContent() {
         setError(result.error);
         setLoading(false);
       } else {
-        console.log("Login successful, redirecting to:", callbackUrl);
-        // Use window.location for a hard redirect
-        window.location.href = callbackUrl;
+        console.log("Login successful, redirecting to dashboard");
+        // Force a hard redirect to dashboard regardless of callback
+        window.location.href = '/dashboard';
       }
     } catch (err) {
       console.error("Login exception:", err);
@@ -86,7 +85,7 @@ function LoginContent() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Already logged in. Redirecting to {callbackUrl}...</p>
+          <p className="mt-4 text-muted-foreground">Already logged in. Redirecting to dashboard...</p>
         </div>
       </div>
     );
