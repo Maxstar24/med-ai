@@ -56,84 +56,6 @@ export default function TakeQuizPage() {
   // Helper function to get the quiz ID, handling both id and _id properties
   const getQuizId = (quiz: Quiz) => quiz?._id || quiz?.id;
 
-  const formatQuestionOptions = (quiz: Quiz): Quiz => {
-    // Create a deep copy to avoid mutating original data
-    const quizCopy = JSON.parse(JSON.stringify(quiz));
-    
-    // Handle both formats of questions and options
-    quizCopy.questions.forEach((question: Question, qIndex: number) => {
-      // Support both text and question fields
-      question.text = question.text || (question as any).question;
-      
-      // Ensure question has a unique _id
-      if (!question._id) {
-        question._id = `question-${qIndex}`;
-      }
-      
-      // Special handling for different question types
-      if (question.type === 'true-false') {
-        // For true-false questions, create True/False options as array of objects
-        // (originally just empty strings in the database)
-        question.formattedOptions = [
-          {
-            _id: `option-${qIndex}-true`,
-            text: 'True',
-            isCorrect: question.correctAnswer === 'true'
-          },
-          {
-            _id: `option-${qIndex}-false`,
-            text: 'False',
-            isCorrect: question.correctAnswer === 'false'
-          }
-        ];
-      } 
-      else if (question.type === 'multiple-choice') {
-        // For multiple choice questions
-        // Convert the array of strings to array of objects with IDs
-        question.formattedOptions = question.options.map((option: any, oIndex: number) => {
-          return {
-            _id: `option-${qIndex}-${oIndex}`,
-            text: option,
-            isCorrect: question.correctAnswer === option
-          };
-        });
-      }
-      else {
-        // Default case for other question types
-        if (Array.isArray(question.options)) {
-          if (question.options.length === 0 || question.options.every((opt: any) => opt === '')) {
-            question.formattedOptions = [
-              {
-                _id: `option-${qIndex}-default`,
-                text: 'No options provided',
-                isCorrect: false
-              }
-            ];
-          } else {
-            question.formattedOptions = question.options.map((option: any, oIndex: number) => {
-              return {
-                _id: `option-${qIndex}-${oIndex}`,
-                text: option || `Option ${oIndex + 1}`, // Fallback for empty strings
-                isCorrect: question.correctAnswer === option
-              };
-            });
-          }
-        } else {
-          question.formattedOptions = [{
-            _id: `option-${qIndex}-default`,
-            text: 'No options available',
-            isCorrect: false
-          }];
-        }
-      }
-      
-      // Keep original options array for reference
-      // but use formattedOptions for rendering
-    });
-    
-    return quizCopy;
-  };
-
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
@@ -218,40 +140,97 @@ export default function TakeQuizPage() {
       return total;
     }, 0);
     
-    // Format the answers for submission
-    const answers = Object.keys(selectedOptions).map(questionId => ({
-      questionId,
-      userAnswer: selectedOptions[questionId],
-      isCorrect: selectedOptions[questionId].every(opt => quiz.questions.find(q => q._id === questionId)?.formattedOptions?.find(o => o._id === opt)?.isCorrect),
-    }));
-    
     try {
+      // We need to properly extract the MongoDB ObjectIds
+      const rawQuiz = await fetch(`/api/quizzes/${quizId}`).then(res => res.json());
+      console.log('Raw quiz data:', rawQuiz);
+      
+      // Format the answers for submission
+      const formattedAnswers = [];
+      
+      // Go through each question in the quiz
+      for (let i = 0; i < quiz.questions.length; i++) {
+        const question = quiz.questions[i];
+        const originalQuestionData = rawQuiz.quiz.questions[i];
+        const questionId = question._id;
+        const selected = selectedOptions[questionId] || [];
+        
+        // Skip questions with no answers selected
+        if (selected.length === 0) continue;
+        
+        // Get the original MongoDB ObjectId
+        let originalQuestionId;
+        if (originalQuestionData && originalQuestionData._id) {
+          originalQuestionId = typeof originalQuestionData._id === 'object' && originalQuestionData._id.$oid 
+            ? originalQuestionData._id.$oid 
+            : originalQuestionData._id;
+        } else {
+          // Fallback to the index if we can't find an ID
+          console.warn(`Could not find original ID for question ${i}, using index instead`);
+          originalQuestionId = i.toString();
+        }
+        
+        // Determine the user's answer and if it's correct
+        let userAnswer;
+        let isCorrect = false;
+        
+        if (question.type === 'true-false') {
+          userAnswer = selected.some(id => id.includes('-true'));
+          isCorrect = userAnswer === (question.correctAnswer === 'true');
+        } else {
+          const selectedOptionId = selected[0];
+          const selectedOption = question.formattedOptions?.find(opt => opt._id === selectedOptionId);
+          userAnswer = selectedOption?.text || '';
+          isCorrect = selectedOption?.isCorrect || false;
+        }
+        
+        formattedAnswers.push({
+          questionId: originalQuestionId,
+          userAnswer,
+          isCorrect,
+          timeSpent: 0
+        });
+      }
+      
+      // Make sure we have all required fields
+      if (formattedAnswers.length === 0) {
+        throw new Error('No answers selected');
+      }
+      
+      const submissionData = {
+        quizId: getQuizId(quiz),
+        score,
+        totalQuestions: quiz.questions.length,
+        timeSpent: 0, 
+        answers: formattedAnswers,
+        completedAt: new Date().toISOString(),
+      };
+      
+      console.log('Submitting quiz with data:', submissionData);
+      
+      // Submit the quiz result
       const response = await fetch(`/api/quizzes/results`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          quizId: getQuizId(quiz),
-          score: score,
-          totalQuestions: quiz.questions.length,
-          timeSpent: 0, // You can calculate the actual time spent if needed
-          answers: answers,
-          completedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(submissionData),
       });
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
         throw new Error(`Failed to submit quiz (Status: ${response.status})`);
       }
       
       const data = await response.json();
+      console.log('Success response:', data);
       
-      setResultsId(data.result._id);
+      setResultsId(data.result._id || data.result.id);
       setQuizSubmitted(true);
       
       // Redirect to results page
-      router.push(`/quizzes/results/${data.result._id}`);
+      router.push(`/quizzes/results/${data.result._id || data.result.id}`);
       
     } catch (err) {
       console.error('Error submitting quiz:', err);
@@ -284,26 +263,6 @@ export default function TakeQuizPage() {
               <Button>
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 Back to Quiz Details
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!quiz) {
-    return (
-      <div className="min-h-screen bg-background">
-        <MainNav />
-        <div className="container mx-auto p-6">
-          <div className="text-center py-10">
-            <h3 className="text-xl font-medium mb-2">Quiz Not Found</h3>
-            <p className="text-muted-foreground mb-6">The quiz you're looking for doesn't exist or you don't have permission to view it.</p>
-            <Link href="/quizzes">
-              <Button>
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                Back to Quizzes
               </Button>
             </Link>
           </div>
@@ -424,4 +383,68 @@ export default function TakeQuizPage() {
       </div>
     </div>
   );
+}
+
+function formatQuestionOptions(quiz: Quiz): Quiz {
+  // Create a deep copy to avoid mutating original data
+  const quizCopy = JSON.parse(JSON.stringify(quiz));
+  
+  // Handle both formats of questions and options
+  quizCopy.questions.forEach((question: Question, qIndex: number) => {
+    // Support both text and question fields
+    question.text = question.text || (question as any).question;
+    
+    // Ensure question has a unique _id
+    if (!question._id) {
+      question._id = `question-${qIndex}`;
+    }
+    
+    // Special handling for different question types
+    if (question.type === 'true-false') {
+      // For true-false questions, create True/False options as array of objects
+      // (originally just empty strings in the database)
+      question.formattedOptions = [
+        {
+          _id: `option-${qIndex}-true`,
+          text: 'True',
+          isCorrect: question.correctAnswer === 'true'
+        },
+        {
+          _id: `option-${qIndex}-false`,
+          text: 'False',
+          isCorrect: question.correctAnswer === 'false'
+        }
+      ];
+    } 
+    else if (question.type === 'multiple-choice') {
+      // For multiple choice questions
+      // Convert the array of strings to array of objects with IDs
+      question.formattedOptions = question.options.map((option: any, oIndex: number) => {
+        return {
+          _id: `option-${qIndex}-${oIndex}`,
+          text: option,
+          isCorrect: question.correctAnswer === option
+        };
+      });
+    }
+    else {
+      // Default case for other question types
+      if (Array.isArray(question.options)) {
+        if (question.options.length === 0 || question.options.every((opt: any) => opt === '')) {
+          question.formattedOptions = [
+            {
+              _id: `option-${qIndex}-default`,
+              text: 'No options provided',
+              isCorrect: false
+            }
+          ];
+        }
+      }
+    }
+    
+    // Keep original options array for reference
+    // but use formattedOptions for rendering
+  });
+  
+  return quizCopy;
 }
