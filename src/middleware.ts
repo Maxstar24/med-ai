@@ -30,6 +30,13 @@ export async function middleware(request: NextRequest) {
   const publicRoutes = ['/', '/login', '/signup', '/reset-password'];
   const isPublicRoute = publicRoutes.includes(pathname);
   
+  // Protected routes that require authentication
+  const isProtectedRoute = 
+    pathname.startsWith('/dashboard') || 
+    pathname.startsWith('/ai-learning') || 
+    pathname.startsWith('/cases') || 
+    pathname.startsWith('/quizzes');
+  
   // If the route is public, allow access
   if (isPublicRoute) {
     // If the user is authenticated and trying to access login/signup, redirect to dashboard
@@ -42,15 +49,21 @@ export async function middleware(request: NextRequest) {
   }
   
   // If the user is not authenticated and trying to access a protected route, redirect to login
-  if (!isAuthenticated) {
+  if (!isAuthenticated && isProtectedRoute) {
     console.log("Middleware: Unauthenticated user trying to access protected route, redirecting to login");
     const url = new URL('/login', request.url);
     url.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(url);
   }
   
-  // Allow access to all other routes for authenticated users
-  console.log("Middleware: Authenticated user accessing protected route, allowing access");
+  // If the user is authenticated and trying to access a protected route, allow access
+  if (isAuthenticated && isProtectedRoute) {
+    console.log("Middleware: Authenticated user accessing protected route, allowing access");
+    return NextResponse.next();
+  }
+  
+  // For all other routes, allow access
+  console.log("Middleware: Unclassified route, allowing access:", pathname);
   return NextResponse.next();
 }
 
