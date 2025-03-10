@@ -1,140 +1,197 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { toast } from '@/components/ui/use-toast';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { Brain } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Suspense } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
-const signUpSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-});
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SignupContent />
+    </Suspense>
+  );
+}
 
-type SignUpFormValues = z.infer<typeof signUpSchema>;
-
-export default function SignUpPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const form = useForm<SignUpFormValues>({
-    resolver: zodResolver(signUpSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      password: '',
-    },
+function SignupContent() {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { user, loading: authLoading, signUp } = useAuth();
 
-  async function onSubmit(values: SignUpFormValues) {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong');
-      }
-
-      toast({
-        title: 'Account created!',
-        description: 'Please sign in with your new account',
-      });
-
-      router.push('/login');
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Something went wrong',
-      });
-    } finally {
-      setIsLoading(false);
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user) {
+      console.log("User is already authenticated, redirecting to dashboard");
+      router.push('/dashboard');
     }
+  }, [user, router]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // Validate form
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Create user with Firebase
+      await signUp(formData.email, formData.password);
+      // The auth context will handle redirection
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError(err.message || "Failed to create account");
+      setLoading(false);
+    }
+  };
+
+  // If already authenticated or loading, show loading
+  if (authLoading || user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">
+            {user ? "Already logged in. Redirecting..." : "Loading..."}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <div className="flex flex-col space-y-2 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Create an account</h1>
-          <p className="text-sm text-muted-foreground">
-            Enter your information below to create your account
-          </p>
-        </div>
+    <main className="flex min-h-screen items-center justify-center p-4">
+      <Card className="relative w-full max-w-md overflow-hidden border-slate-800 bg-slate-950/50 p-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent" />
+        <div className="relative">
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-block">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-center gap-2"
+              >
+                <Brain className="h-8 w-8 text-blue-500" />
+                <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
+                  MedAI
+                </span>
+              </motion.div>
+            </Link>
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="mt-6 text-2xl font-bold tracking-tight"
+            >
+              Create an account
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mt-2 text-sm text-gray-400"
+            >
+              Sign up to start your medical learning journey
+            </motion.p>
+          </div>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }: { field: any }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="John Doe" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }: { field: any }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="john@example.com" type="email" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }: { field: any }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input placeholder="********" type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Create account'}
+          <motion.form
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-4"
+            onSubmit={handleSubmit}
+          >
+            {error && (
+              <div className="p-3 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-md">
+                {error}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Input
+                name="name"
+                type="text"
+                placeholder="Full Name"
+                required
+                className="bg-slate-900"
+                value={formData.name}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Input
+                name="email"
+                type="email"
+                placeholder="Email"
+                required
+                className="bg-slate-900"
+                value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Input
+                name="password"
+                type="password"
+                placeholder="Password"
+                required
+                className="bg-slate-900"
+                value={formData.password}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Input
+                name="confirmPassword"
+                type="password"
+                placeholder="Confirm Password"
+                required
+                className="bg-slate-900"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+              />
+            </div>
+            <Button className="w-full" type="submit" disabled={loading}>
+              {loading ? "Creating Account..." : "Sign up"}
             </Button>
-          </form>
-        </Form>
-
-        <p className="px-8 text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <Link href="/login" className="underline underline-offset-4 hover:text-primary">
-            Sign in
-          </Link>
-        </p>
-      </div>
-    </div>
+            <p className="text-center text-sm text-gray-400">
+              Already have an account?{' '}
+              <Link href="/login" className="text-blue-500 hover:text-blue-400">
+                Sign in
+              </Link>
+            </p>
+          </motion.form>
+        </div>
+      </Card>
+    </main>
   );
 } 

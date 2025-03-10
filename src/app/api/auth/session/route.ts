@@ -1,32 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { cookies } from 'next/headers';
+import { getAuth } from 'firebase-admin/auth';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 
-export const dynamic = 'force-dynamic';
+// Initialize Firebase Admin if it hasn't been initialized
+if (!getApps().length) {
+  const serviceAccount = JSON.parse(
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}'
+  );
+  
+  initializeApp({
+    credential: cert(serviceAccount),
+    databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  });
+}
 
-export async function GET(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const { idToken } = await request.json();
     
-    return NextResponse.json({
-      authenticated: !!session,
-      session: session ? {
-        user: {
-          id: session.user.id,
-          name: session.user.name,
-          email: session.user.email,
-        },
-        expires: session.expires,
-      } : null,
+    // Create a session cookie
+    const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
+    const sessionCookie = await getAuth().createSessionCookie(idToken, { expiresIn });
+    
+    // Set cookie for future requests
+    cookies().set('firebase-session', sessionCookie, {
+      maxAge: expiresIn,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
     });
+    
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Session check error:', error);
-    return NextResponse.json(
-      { 
-        authenticated: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    console.error('Error creating session:', error);
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+}
+
+export async function DELETE() {
+  try {
+    // Clear the session cookie
+    cookies().delete('firebase-session');
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 } 

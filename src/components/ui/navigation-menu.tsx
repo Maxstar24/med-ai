@@ -7,8 +7,8 @@ import { ChevronDownIcon } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "./button"
-import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/AuthContext"
 
 function NavigationMenu({
   className,
@@ -189,7 +189,7 @@ const components: { title: string; href: string; description: string }[] = [
 ]
 
 export function MainNav() {
-  const { data: session, status } = useSession();
+  const { user, loading, logout } = useAuth();
   const [isClient, setIsClient] = useState(false);
   
   // Use useEffect to ensure we're rendering on the client side
@@ -197,10 +197,10 @@ export function MainNav() {
     setIsClient(true);
   }, []);
 
-  // Force a re-render when session status changes
+  // Force a re-render when auth status changes
   useEffect(() => {
-    console.log("Navigation - Auth status:", status, "Session:", session ? "exists" : "null");
-  }, [status, session]);
+    console.log("Navigation - Auth status:", user ? "authenticated" : "unauthenticated");
+  }, [user]);
 
   return (
     <NavigationMenu className="p-4 border-b">
@@ -213,7 +213,7 @@ export function MainNav() {
           </Link>
         </NavigationMenuItem>
 
-        {isClient && status === 'authenticated' && session ? (
+        {isClient && user ? (
           <>
             <NavigationMenuItem>
               <Link href="/dashboard" legacyBehavior passHref>
@@ -259,9 +259,7 @@ export function MainNav() {
               <button
                 onClick={() => {
                   console.log("Sign out clicked");
-                  // Force a hard redirect to the sign-out endpoint
-                  const baseUrl = window.location.origin;
-                  window.location.href = `${baseUrl}/api/auth/signout?callbackUrl=${encodeURIComponent('/')}`;
+                  logout();
                 }}
                 className={navigationMenuTriggerStyle()}
               >

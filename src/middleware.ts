@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { cookies } from 'next/headers';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -16,16 +16,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // Get the token
-  const token = await getToken({ 
-    req: request, 
-    secret: process.env.NEXTAUTH_SECRET 
-  });
-  
-  // Check if the user is authenticated
-  const isAuthenticated = !!token;
-  console.log("Middleware: Authentication status for", pathname, ":", isAuthenticated);
-  
   // Public routes that don't require authentication
   const publicRoutes = ['/', '/login', '/signup', '/reset-password'];
   const isPublicRoute = publicRoutes.includes(pathname);
@@ -36,6 +26,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/ai-learning') || 
     pathname.startsWith('/cases') || 
     pathname.startsWith('/quizzes');
+  
+  // Check for Firebase session cookie
+  const sessionCookie = request.cookies.get('firebase-session');
+  const isAuthenticated = !!sessionCookie?.value;
+  
+  console.log("Middleware: Authentication status for", pathname, ":", isAuthenticated);
   
   // If the route is public, allow access
   if (isPublicRoute) {

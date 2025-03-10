@@ -7,9 +7,9 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Brain } from "lucide-react";
 import { useState, useEffect } from "react";
-import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
   return (
@@ -29,19 +29,18 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered");
-  const { data: session, status } = useSession();
   const callbackUrl = searchParams.get("callbackUrl") || '/dashboard';
+  const { user, loading: authLoading, signIn } = useAuth();
 
   // Redirect if already authenticated
   useEffect(() => {
-    console.log("Login page - Auth status:", status, "Session:", session ? "exists" : "null", "Callback URL:", callbackUrl);
+    console.log("Login page - Auth status:", user ? "authenticated" : "unauthenticated", "Callback URL:", callbackUrl);
     
-    if (status === 'authenticated' && session) {
+    if (user) {
       console.log("User is already authenticated, redirecting to dashboard");
-      // Force a hard redirect to dashboard
-      window.location.href = '/dashboard';
+      router.push(callbackUrl);
     }
-  }, [status, session]);
+  }, [user, callbackUrl, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -57,33 +56,24 @@ function LoginContent() {
 
     try {
       console.log("Attempting login with credentials");
-      const result = await signIn("credentials", {
-        email: formData.email,
-        password: formData.password,
-        redirect: true,
-        callbackUrl: '/dashboard'
-      });
-
-      // This code will only run if redirect is set to false
-      if (result?.error) {
-        console.log("Login error:", result.error);
-        setError(result.error);
-        setLoading(false);
-      }
-    } catch (err) {
+      await signIn(formData.email, formData.password);
+      // The auth context will handle redirection
+    } catch (err: any) {
       console.error("Login exception:", err);
-      setError("Failed to sign in");
+      setError(err.message || "Failed to sign in");
       setLoading(false);
     }
   };
 
-  // If already authenticated, show loading
-  if (status === 'authenticated') {
+  // If already authenticated or loading, show loading
+  if (authLoading || user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Already logged in. Redirecting to dashboard...</p>
+          <p className="mt-4 text-muted-foreground">
+            {user ? "Already logged in. Redirecting..." : "Loading..."}
+          </p>
         </div>
       </div>
     );
