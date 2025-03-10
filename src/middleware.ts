@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 export async function middleware(request: NextRequest) {
-  const { pathname, origin } = request.nextUrl;
+  const { pathname } = request.nextUrl;
   
   // Get the token
   const token = await getToken({ 
@@ -27,7 +27,6 @@ export async function middleware(request: NextRequest) {
   if (isPublicRoute) {
     // If the user is authenticated and trying to access login/signup, redirect to dashboard
     if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
-      console.log('Redirecting authenticated user from login/signup to dashboard');
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     return NextResponse.next();
@@ -35,9 +34,8 @@ export async function middleware(request: NextRequest) {
   
   // If the user is not authenticated and trying to access a protected route, redirect to login
   if (!isAuthenticated) {
-    console.log('Redirecting unauthenticated user to login');
     const url = new URL('/login', request.url);
-    url.searchParams.set('callbackUrl', pathname);
+    url.searchParams.set('callbackUrl', '/dashboard');
     return NextResponse.redirect(url);
   }
   
@@ -54,7 +52,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - api routes (to prevent redirect loops)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public|api).*)',
   ],
 }; 

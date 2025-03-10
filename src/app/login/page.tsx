@@ -29,15 +29,15 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered");
-  const { data: session, status } = useSession();
+  const { status } = useSession();
+  const callbackUrl = searchParams.get("callbackUrl") || '/dashboard';
 
-  // Redirect to dashboard if already authenticated
+  // Redirect if already authenticated
   useEffect(() => {
     if (status === 'authenticated') {
-      console.log("User is authenticated, redirecting to dashboard");
-      window.location.href = '/dashboard';
+      router.push('/dashboard');
     }
-  }, [status]);
+  }, [status, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -52,20 +52,18 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      // Simplify the login process - always redirect to dashboard
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
         redirect: false,
+        callbackUrl
       });
 
       if (result?.error) {
         setError(result.error);
         setLoading(false);
       } else {
-        console.log("Login successful, redirecting to dashboard");
-        // Force a hard navigation to the dashboard
-        window.location.href = '/dashboard';
+        router.push(callbackUrl);
       }
     } catch (err) {
       setError("Failed to sign in");
@@ -75,7 +73,14 @@ function LoginContent() {
 
   // If already authenticated, show loading
   if (status === 'authenticated') {
-    return <div className="flex min-h-screen items-center justify-center">Redirecting to dashboard...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Already logged in. Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

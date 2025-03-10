@@ -77,53 +77,30 @@ export const authOptions: AuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      console.log('NextAuth redirect callback:', { url, baseUrl });
-      
-      // Check if this is a sign out redirect
-      if (url === '/' || url.includes('/signout') || url.includes('/api/auth/signout')) {
-        console.log('Sign out detected, redirecting to home page');
+      // Handle sign out - always redirect to home page
+      if (url.includes('/signout') || url.includes('/api/auth/signout')) {
         return '/';
       }
       
-      // In development, redirect to dashboard for other cases
-      if (process.env.NODE_ENV === 'development') {
-        // Only redirect to dashboard if not signing out
-        if (!url.includes('/signout')) {
-          console.log('Development mode: redirecting to dashboard');
-          return '/dashboard';
-        }
+      // If URL is just the domain without a path, redirect to dashboard
+      if (url === baseUrl || url === `${baseUrl}/`) {
+        return '/dashboard';
       }
       
-      // For production, use normal redirect logic
+      // Handle relative URLs
       if (url.startsWith('/')) {
-        console.log('Redirecting to relative URL:', `${baseUrl}${url}`);
-        return `${baseUrl}${url}`;
-      }
-      
-      // Check if the URL is from the same origin
-      try {
-        const urlOrigin = new URL(url).origin;
-        if (urlOrigin === baseUrl) {
-          console.log('Redirecting to same-origin URL:', url);
-          return url;
-        }
-      } catch (error) {
-        console.error('Error parsing URL:', error);
+        return url;
       }
       
       // Default redirect to dashboard
-      console.log('Redirecting to default dashboard');
-      return `${baseUrl}/dashboard`;
+      return '/dashboard';
     }
   },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
-  useSecureCookies: process.env.NODE_ENV === 'production',
-  ...(process.env.NODE_ENV === 'development' && {
-    url: process.env.NEXTAUTH_URL || 'http://localhost:3000'
-  })
 };
 
 const handler = NextAuth(authOptions);
