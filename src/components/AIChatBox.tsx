@@ -4,7 +4,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import Markdown from '@/components/Markdown';
-import 'tailwindcss/tailwind.css';
 
 interface AIChatBoxProps {
   onClose?: () => void;
