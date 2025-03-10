@@ -6,8 +6,8 @@ import { Card } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Brain } from "lucide-react";
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -29,6 +29,14 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered");
+  const { status } = useSession();
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.push('/dashboard');
+    }
+  }, [status, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -55,23 +63,25 @@ function LoginContent() {
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
-        redirect: false,
+        redirect: true,
         callbackUrl: callbackUrl
       });
 
+      // Note: The code below won't execute if redirect is true
       if (result?.error) {
         setError(result.error);
-      } else {
-        // Always redirect to dashboard after successful login
-        router.push('/dashboard');
-        router.refresh();
+        setLoading(false);
       }
     } catch (err) {
       setError("Failed to sign in");
-    } finally {
       setLoading(false);
     }
   };
+
+  // If already authenticated, show loading
+  if (status === 'authenticated') {
+    return <div className="flex min-h-screen items-center justify-center">Redirecting to dashboard...</div>;
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">

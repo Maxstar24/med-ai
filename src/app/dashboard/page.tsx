@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,12 +52,27 @@ const staggerContainer = {
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [recentCases, setRecentCases] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Redirect if not authenticated
-  if (status === 'unauthenticated') {
-    redirect('/login');
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  // If still loading session or not authenticated, show loading
+  if (status === 'loading' || status === 'unauthenticated') {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   // Fetch recent cases
@@ -74,8 +89,10 @@ export default function DashboardPage() {
       }
     };
 
-    fetchRecentCases();
-  }, []);
+    if (status === 'authenticated') {
+      fetchRecentCases();
+    }
+  }, [status]);
 
   // Get time of day greeting
   const getGreeting = () => {
