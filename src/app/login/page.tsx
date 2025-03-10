@@ -59,7 +59,8 @@ function LoginContent() {
       if (result?.error) {
         setError(result.error);
       } else {
-        router.push(finalCallbackUrl || '/dashboard');
+        // Always redirect to dashboard after successful login
+        router.push('/dashboard');
         router.refresh();
       }
     } catch (err) {

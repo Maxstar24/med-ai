@@ -266,9 +266,9 @@ export default function AILearningPage() {
                   </Card>
                 </motion.div>
                 
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
                 >
                   <Card 
@@ -336,15 +336,15 @@ export default function AILearningPage() {
                           className="p-6 border-slate-800 bg-slate-900/50 hover:bg-slate-900/75 transition-all cursor-pointer"
                           onClick={() => router.push(`/cases/${caseItem._id}`)}
                         >
-                          <div className="flex items-center gap-4 mb-4">
-                            <div className="p-2 rounded-lg bg-blue-500/10">
-                              <BookOpen className="h-6 w-6 text-blue-500" />
-                            </div>
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="p-2 rounded-lg bg-blue-500/10">
+                          <BookOpen className="h-6 w-6 text-blue-500" />
+                        </div>
                             <h3 className="text-lg font-semibold">{caseItem.title}</h3>
-                          </div>
+                      </div>
                           <p className="text-slate-400 mb-4">{caseItem.description}</p>
-                          <div className="flex items-center justify-between text-sm text-slate-400">
-                            <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between text-sm text-slate-400">
+                        <div className="flex items-center gap-2">
                               <span className={`px-2 py-1 rounded-md text-xs ${
                                 caseItem.difficulty === 'beginner' ? 'bg-green-500/20 text-green-300' :
                                 caseItem.difficulty === 'intermediate' ? 'bg-yellow-500/20 text-yellow-300' :
@@ -352,17 +352,17 @@ export default function AILearningPage() {
                               }`}>
                                 {caseItem.difficulty}
                               </span>
-                            </div>
+                        </div>
                             <div>
                               {new Date(caseItem.createdAt).toLocaleDateString()}
-                            </div>
-                          </div>
-                          <Button className="w-full mt-4">
-                            Start Case <ArrowRight className="w-4 h-4 ml-2" />
-                          </Button>
-                        </Card>
-                      </motion.div>
-                    ))}
+                        </div>
+                      </div>
+                      <Button className="w-full mt-4">
+                        Start Case <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </Card>
+                  </motion.div>
+                ))}
                   </div>
                 )}
               </div>
