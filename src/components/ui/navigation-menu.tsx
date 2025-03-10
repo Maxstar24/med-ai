@@ -166,6 +166,11 @@ const components: { title: string; href: string; description: string }[] = [
     description: "AI-powered responses for medical concepts and clinical guidelines.",
   },
   {
+    title: "Medical Cases",
+    href: "/cases/browse",
+    description: "Browse and learn from interactive medical case studies.",
+  },
+  {
     title: "Practice Mode",
     href: "/practice",
     description: "Duolingo-style quizzes with adaptive difficulty and rewards.",
@@ -215,6 +220,14 @@ export function MainNav() {
               <Link href="/ai-learning" legacyBehavior passHref>
                 <NavigationMenuLink className={navigationMenuTriggerStyle()}>
                   AI Learning
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+
+            <NavigationMenuItem>
+              <Link href="/cases/browse" legacyBehavior passHref>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                  Cases
                 </NavigationMenuLink>
               </Link>
             </NavigationMenuItem>

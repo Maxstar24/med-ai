@@ -128,12 +128,12 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.6 }}
               >
-                <Button size="lg" className="group">
-                  Get Started
+                <Button size="lg" className="group" onClick={() => window.location.href = '/cases/browse'}>
+                  Browse Cases
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Button>
-                <Button variant="outline" size="lg">
-                  Learn More
+                <Button variant="outline" size="lg" onClick={() => window.location.href = '/ai-learning'}>
+                  AI Learning
                 </Button>
               </motion.div>
             </motion.div>
@@ -174,6 +174,26 @@ export default function Home() {
                   </motion.div>
                   <h3 className="mt-4 text-lg font-semibold">{feature.title}</h3>
                   <p className="mt-2 text-gray-400">{feature.description}</p>
+                  {feature.title === "Case-Based Learning" && (
+                    <Button 
+                      variant="link" 
+                      className="mt-4 p-0 text-blue-500 flex items-center"
+                      onClick={() => window.location.href = '/cases/browse'}
+                    >
+                      Browse Cases
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  )}
+                  {feature.title === "AI Learning Assistant" && (
+                    <Button 
+                      variant="link" 
+                      className="mt-4 p-0 text-blue-500 flex items-center"
+                      onClick={() => window.location.href = '/ai-learning'}
+                    >
+                      Try AI Learning
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  )}
                 </Card>
               </motion.div>
             ))}

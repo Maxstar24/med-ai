@@ -1,123 +1,90 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { z } from 'zod';
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { mkdir } from 'fs/promises';
 
-const uploadRequestSchema = z.object({
-  content: z.string(),
-  fileName: z.string(),
-  fileType: z.enum(['pdf', 'png', 'docx', 'txt']),
-  topic: z.string().optional(),
-  difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
-});
+// Set dynamic to force-dynamic to prevent caching
+export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request) {
+// Create uploads directory if it doesn't exist
+async function ensureUploadsDir() {
+  const uploadsDir = join(process.cwd(), 'public', 'uploads');
+  try {
+    await mkdir(uploadsDir, { recursive: true });
+    return uploadsDir;
+  } catch (error) {
+    console.error('Error creating uploads directory:', error);
+    throw error;
+  }
+}
+
+export async function POST(request: NextRequest) {
   try {
     // Check authentication
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    // Get the form data
-    const body = await request.json();
-    const validatedData = uploadRequestSchema.parse(body);
+    // Process the form data
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
 
-    // Format the prompt for question generation
-    const prompt = `Based on the following ${validatedData.fileType} content, generate a set of educational questions.
-Content:
-${validatedData.content}
-
-Please create:
-1. Multiple choice questions
-2. True/False questions
-3. Fill in the blank questions
-4. Matching questions
-
-For each question:
-- Include the correct answer
-- Provide a detailed explanation
-- Add relevant context
-- Set an appropriate difficulty level
-- Tag with relevant topics/categories
-
-Format the response as a JSON array of questions.`;
-
-    try {
-      // Call your AI model
-      const response = await fetch(process.env.AI_MODEL_ENDPOINT!, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.AI_MODEL_API_KEY}`,
-        },
-        body: JSON.stringify({
-          prompt,
-          temperature: 0.7,
-          max_tokens: 2000,
-          format: 'json',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('AI model request failed');
-      }
-
-      const data = await response.json();
-
-      // Store the generated questions in your database
-      // This is where you'd save to your database
-      // For now, we'll just return them
-      
-      return NextResponse.json({
-        questions: data.questions,
-        message: 'Questions generated successfully',
-      });
-    } catch (error) {
-      console.error('AI processing error:', error);
+    if (!file) {
       return NextResponse.json(
-        { error: 'Failed to process document with AI' },
-        { status: 500 }
-      );
-    }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0].message },
+        { error: 'No file provided' },
         { status: 400 }
       );
     }
 
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Only JPEG, PNG, GIF, and WebP are supported.' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum size is 5MB.' },
+        { status: 400 }
+      );
+    }
+
+    // Generate a unique filename
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    
+    // Ensure uploads directory exists
+    const uploadsDir = await ensureUploadsDir();
+    
+    // Save the file
+    const filePath = join(uploadsDir, fileName);
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(filePath, fileBuffer);
+
+    // Generate the URL
+    const fileUrl = `/uploads/${fileName}`;
+
+    return NextResponse.json({
+      url: fileUrl,
+      message: 'File uploaded successfully',
+    });
+  } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json(
-      { error: 'Failed to process upload' },
+      { error: 'Failed to process upload', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
-}
-
-// Helper function to chunk content for large documents
-function chunkContent(content: string, maxChunkSize: number = 4000): string[] {
-  const chunks: string[] = [];
-  let currentChunk = '';
-
-  const sentences = content.split(/(?<=[.!?])\s+/);
-
-  for (const sentence of sentences) {
-    if ((currentChunk + sentence).length > maxChunkSize) {
-      chunks.push(currentChunk);
-      currentChunk = sentence;
-    } else {
-      currentChunk += (currentChunk ? ' ' : '') + sentence;
-    }
-  }
-
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
 } 
