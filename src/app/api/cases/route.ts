@@ -4,12 +4,13 @@ import { connectToDatabase } from '@/lib/mongodb';
 import mongoose from 'mongoose';
 import { getAuth } from 'firebase-admin/auth';
 import User from '@/models/User';
+import { DecodedIdToken } from 'firebase-admin/auth';
 
 // Add dynamic export to ensure the route is always fresh
 export const dynamic = 'force-dynamic';
 
 // Helper function to verify Firebase token
-async function verifyFirebaseToken(request: NextRequest) {
+async function verifyFirebaseToken(request: NextRequest): Promise<DecodedIdToken | null> {
   try {
     // Get the Firebase token from the Authorization header
     const authHeader = request.headers.get('Authorization');
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(url.searchParams.get('page') || '1');
     
     // Build query
-    const query: any = {};
+    const query: Record<string, any> = {};
     
     if (category) {
       query.category = category;

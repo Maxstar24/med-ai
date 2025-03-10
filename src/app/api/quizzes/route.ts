@@ -4,9 +4,10 @@ import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
 import { getAuth } from 'firebase-admin/auth';
 import User from '@/models/User';
+import { DecodedIdToken } from 'firebase-admin/auth';
 
 // Helper function to verify Firebase token
-async function verifyFirebaseToken(request: NextRequest) {
+async function verifyFirebaseToken(request: NextRequest): Promise<DecodedIdToken | null> {
   try {
     // Get the Firebase token from the Authorization header
     const authHeader = request.headers.get('Authorization');
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Build query based on filters
-    const query: any = {};
+    const query: Record<string, any> = {};
     
     // Filter by topic if provided
     if (topic) query.topic = topic;
@@ -152,7 +153,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     // Get the request body with quiz IDs to delete
-    const { quizIds } = await request.json();
+    const { quizIds } = await request.json() as { quizIds: string[] };
     
     if (!quizIds || !Array.isArray(quizIds) || quizIds.length === 0) {
       return NextResponse.json(

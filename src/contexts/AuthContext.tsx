@@ -3,21 +3,28 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, onAuthStateChanged, User, signIn as firebaseSignIn, signOut as firebaseSignOut, createUser as firebaseCreateUser } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { UserCredential } from 'firebase/auth';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, name: string) => Promise<any>;
+  signIn: (email: string, password: string) => Promise<UserCredential>;
+  signUp: (email: string, password: string, name: string) => Promise<UserCredential>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  signIn: async () => {},
-  signUp: async () => {},
-  logout: async () => {},
+  signIn: async () => {
+    throw new Error('Not implemented');
+  },
+  signUp: async () => {
+    throw new Error('Not implemented');
+  },
+  logout: async () => {
+    throw new Error('Not implemented');
+  },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -37,7 +44,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (email: string, password: string, name: string): Promise<UserCredential> => {
     try {
       // Create Firebase user
       const result = await firebaseCreateUser(email, password);
@@ -67,7 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<UserCredential> => {
     try {
       const result = await firebaseSignIn(email, password);
       
@@ -100,7 +107,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     try {
       await firebaseSignOut();
       router.push('/');

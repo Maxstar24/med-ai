@@ -6,7 +6,7 @@ import { auth } from './firebase';
  * @param options Fetch options
  * @returns The fetch response
  */
-export async function fetchWithAuth(url: string, options: RequestInit = {}) {
+export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   try {
     // Get the current user
     const user = auth.currentUser;
@@ -59,7 +59,7 @@ export async function getWithAuth<T>(url: string): Promise<T> {
  * @param data The data to send
  * @returns The parsed JSON response
  */
-export async function postWithAuth<T>(url: string, data: any): Promise<T> {
+export async function postWithAuth<T, D = Record<string, unknown>>(url: string, data: D): Promise<T> {
   const response = await fetchWithAuth(url, {
     method: 'POST',
     body: JSON.stringify(data),
@@ -78,7 +78,7 @@ export async function postWithAuth<T>(url: string, data: any): Promise<T> {
  * @param data The data to send
  * @returns The parsed JSON response
  */
-export async function putWithAuth<T>(url: string, data: any): Promise<T> {
+export async function putWithAuth<T, D = Record<string, unknown>>(url: string, data: D): Promise<T> {
   const response = await fetchWithAuth(url, {
     method: 'PUT',
     body: JSON.stringify(data),
@@ -114,7 +114,7 @@ export async function deleteWithAuth<T>(url: string): Promise<T> {
  * @param data The data to send
  * @returns The parsed JSON response
  */
-export async function deleteWithAuthAndBody<T>(url: string, data: any): Promise<T> {
+export async function deleteWithAuthAndBody<T, D = Record<string, unknown>>(url: string, data: D): Promise<T> {
   const response = await fetchWithAuth(url, {
     method: 'DELETE',
     body: JSON.stringify(data),
