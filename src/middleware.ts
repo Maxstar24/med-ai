@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 export async function middleware(request: NextRequest) {
-  // Skip middleware completely in development mode
-  if (process.env.NODE_ENV === 'development') {
-    console.log("Middleware: Development mode detected, skipping middleware");
-    return NextResponse.next();
-  }
-
   const { pathname } = request.nextUrl;
   
   // Skip middleware for API routes and auth-related routes
