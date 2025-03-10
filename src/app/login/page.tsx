@@ -38,7 +38,7 @@ function LoginContent() {
     
     if (status === 'authenticated' && session) {
       console.log("User is already authenticated, redirecting to dashboard");
-      // Force a hard redirect to dashboard regardless of callback
+      // Force a hard redirect to dashboard
       window.location.href = '/dashboard';
     }
   }, [status, session]);
@@ -60,17 +60,15 @@ function LoginContent() {
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
-        redirect: false
+        redirect: true,
+        callbackUrl: '/dashboard'
       });
 
+      // This code will only run if redirect is set to false
       if (result?.error) {
         console.log("Login error:", result.error);
         setError(result.error);
         setLoading(false);
-      } else {
-        console.log("Login successful, redirecting to dashboard");
-        // Force a hard redirect to dashboard regardless of callback
-        window.location.href = '/dashboard';
       }
     } catch (err) {
       console.error("Login exception:", err);

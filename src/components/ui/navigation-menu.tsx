@@ -259,13 +259,9 @@ export function MainNav() {
               <button
                 onClick={() => {
                   console.log("Sign out clicked");
-                  // Use a direct approach for sign out that works in both dev and prod
-                  signOut({ 
-                    redirect: false 
-                  }).then(() => {
-                    console.log("Sign out successful, redirecting to home page");
-                    window.location.href = '/';
-                  });
+                  // Force a hard redirect to the sign-out endpoint
+                  const baseUrl = window.location.origin;
+                  window.location.href = `${baseUrl}/api/auth/signout?callbackUrl=${encodeURIComponent('/')}`;
                 }}
                 className={navigationMenuTriggerStyle()}
               >

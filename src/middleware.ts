@@ -4,9 +4,15 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Skip middleware for API routes and auth-related routes
-  if (pathname.startsWith('/api/') || pathname.includes('/auth/')) {
-    console.log("Middleware: Skipping for API or auth route:", pathname);
+  // Skip middleware for API routes, auth-related routes, and Next.js internal routes
+  if (
+    pathname.startsWith('/api/') || 
+    pathname.includes('/auth/') ||
+    pathname.startsWith('/_next/') ||
+    pathname === '/favicon.ico' ||
+    pathname.startsWith('/public/')
+  ) {
+    console.log("Middleware: Skipping for API, auth, or internal route:", pathname);
     return NextResponse.next();
   }
   
@@ -22,13 +28,7 @@ export async function middleware(request: NextRequest) {
   
   // Public routes that don't require authentication
   const publicRoutes = ['/', '/login', '/signup', '/reset-password'];
-  const isPublicRoute = publicRoutes.some(route => 
-    pathname === route || 
-    pathname.startsWith('/api/auth') || 
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon.ico') ||
-    pathname.startsWith('/public')
-  );
+  const isPublicRoute = publicRoutes.includes(pathname);
   
   // If the route is public, allow access
   if (isPublicRoute) {
