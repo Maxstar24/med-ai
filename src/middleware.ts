@@ -1,34 +1,55 @@
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
-export default withAuth(
-  function middleware(req) {
-    // Handle callback URLs in development
-    if (process.env.NODE_ENV === 'development') {
-      const callbackUrl = req.nextUrl.searchParams.get('callbackUrl');
-      if (callbackUrl?.includes('med-ai-app.ondigitalocean.app')) {
-        const url = req.nextUrl.clone();
-        url.searchParams.set(
-          'callbackUrl', 
-          callbackUrl.replace('https://med-ai-app.ondigitalocean.app', 'http://localhost:3000')
-        );
-        return NextResponse.redirect(url);
-      }
-    }
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // Get the token
+  const token = await getToken({ 
+    req: request, 
+    secret: process.env.NEXTAUTH_SECRET 
+  });
+  
+  // Check if the user is authenticated
+  const isAuthenticated = !!token;
+  
+  // Public routes that don't require authentication
+  const publicRoutes = ['/', '/login', '/signup', '/reset-password'];
+  const isPublicRoute = publicRoutes.some(route => 
+    pathname === route || pathname.startsWith('/api/auth') || pathname.startsWith('/_next')
+  );
+  
+  // If the route is public, allow access
+  if (isPublicRoute) {
     return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => !!token,
-    },
   }
-);
+  
+  // If the user is not authenticated and trying to access a protected route, redirect to login
+  if (!isAuthenticated) {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(url);
+  }
+  
+  // If the user is authenticated and trying to access login/signup, redirect to dashboard
+  if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+  
+  // Allow access to all other routes for authenticated users
+  return NextResponse.next();
+}
 
+// Configure the middleware to run on specific paths
 export const config = {
   matcher: [
-    "/chat/:path*",
-    "/profile/:path*",
-    "/dashboard/:path*",
-    "/api/protected/:path*",
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
 }; 

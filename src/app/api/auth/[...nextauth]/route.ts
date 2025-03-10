@@ -75,6 +75,25 @@ export const authOptions: AuthOptions = {
         };
       }
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      // If the URL is an absolute URL and contains digitalocean.app in development, redirect to dashboard
+      if (process.env.NODE_ENV === 'development' && url.includes('digitalocean.app')) {
+        return `${baseUrl}/dashboard`;
+      }
+      
+      // If the URL is relative, prepend the base URL
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      }
+      
+      // If the URL is already absolute and on the same host, return it
+      if (new URL(url).origin === baseUrl) {
+        return url;
+      }
+      
+      // Default to the dashboard
+      return `${baseUrl}/dashboard`;
     }
   },
   session: {

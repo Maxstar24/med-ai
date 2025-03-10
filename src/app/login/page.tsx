@@ -43,17 +43,20 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      const callbackUrl = searchParams.get("callbackUrl");
-      // In development, replace DigitalOcean URL with localhost
-      const finalCallbackUrl = process.env.NODE_ENV === 'development' 
-        ? callbackUrl?.replace('https://med-ai-app.ondigitalocean.app', 'http://localhost:3000') 
-        : callbackUrl;
+      // Get the callback URL from search params
+      let callbackUrl = searchParams.get("callbackUrl") || '/dashboard';
+      
+      // Check if we're in development and the callback URL is for production
+      if (process.env.NODE_ENV === 'development' && callbackUrl.includes('digitalocean.app')) {
+        // Replace the production domain with localhost
+        callbackUrl = '/dashboard';
+      }
 
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
         redirect: false,
-        callbackUrl: finalCallbackUrl || '/dashboard'
+        callbackUrl: callbackUrl
       });
 
       if (result?.error) {
