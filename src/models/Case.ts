@@ -21,6 +21,10 @@ export interface ICase extends Document {
     explanation?: string;
     imageUrl?: string;
   }[];
+  // Rating information
+  ratingCount: number;
+  ratingSum: number;
+  ratingAvg: number;
 }
 
 const CaseSchema = new Schema<ICase>(
@@ -93,6 +97,19 @@ const CaseSchema = new Schema<ICase>(
         type: String,
       },
     }],
+    // Rating fields
+    ratingCount: {
+      type: Number,
+      default: 0,
+    },
+    ratingSum: {
+      type: Number,
+      default: 0,
+    },
+    ratingAvg: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

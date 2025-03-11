@@ -36,11 +36,18 @@ function LoginContent() {
   useEffect(() => {
     console.log("Login page - Auth status:", user ? "authenticated" : "unauthenticated", "Callback URL:", callbackUrl);
     
-    if (user) {
-      console.log("User is already authenticated, redirecting to dashboard");
-      router.push(callbackUrl);
+    // Only redirect if user is authenticated and not already on the login page
+    if (user && !authLoading) {
+      // Prevent redirect loops by checking if the callback URL is the login page
+      if (callbackUrl.includes('/login')) {
+        console.log("Preventing redirect loop, redirecting to dashboard instead");
+        router.push('/dashboard');
+      } else {
+        console.log("User is already authenticated, redirecting to:", callbackUrl);
+        router.push(callbackUrl);
+      }
     }
-  }, [user, callbackUrl, router]);
+  }, [user, authLoading, callbackUrl, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({

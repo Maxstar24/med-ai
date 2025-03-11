@@ -1,7 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin if not already initialized
+let firebaseApp: admin.app.App;
+
+function initializeFirebaseAdmin() {
+  if (admin.apps.length > 0) {
+    firebaseApp = admin.app();
+    return firebaseApp;
+  }
+
+  try {
+    // Check if we have the service account key
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not set in environment variables');
+    }
+
+    // Parse the service account key JSON
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+
+    // Initialize the app
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+    });
+
+    return firebaseApp;
+  } catch (error) {
+    console.error('Error initializing Firebase Admin:', error);
+    throw new Error('Failed to initialize Firebase Admin');
+  }
+}
 
 // Initialize the Google Generative AI client
 if (!process.env.GEMINI_API_KEY) {
@@ -15,36 +45,74 @@ export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    // Get session using the correct method for API routes with authOptions
-    const session = await getServerSession(authOptions);
-    
-    // Check authentication
-    if (!session?.user) {
+    // Initialize Firebase Admin if not already initialized
+    try {
+      initializeFirebaseAdmin();
+      console.log('Firebase Admin initialized successfully');
+    } catch (adminError) {
+      console.error('Error initializing Firebase Admin:', adminError);
       return NextResponse.json(
-        { message: 'You must be logged in to generate a case' },
+        { message: 'Server configuration error', error: adminError instanceof Error ? adminError.message : String(adminError) },
+        { status: 500 }
+      );
+    }
+    
+    // Get the authorization token from the request
+    const authHeader = req.headers.get('authorization');
+    console.log('Auth header present:', !!authHeader);
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('Missing or invalid authorization header');
+      return NextResponse.json(
+        { message: 'Unauthorized: Missing or invalid authorization header' },
         { status: 401 }
       );
     }
     
-    const { specialty, difficulty, additionalInstructions, includeImages, numQuestions } = await req.json();
+    const idToken = authHeader.split('Bearer ')[1];
+    console.log('Token extracted, length:', idToken.length);
     
-    if (!specialty) {
+    try {
+      // Verify the Firebase ID token
+      console.log('Attempting to verify Firebase ID token...');
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      console.log('Token verified successfully for user:', uid);
+      
+      if (!uid) {
+        console.error('Token verified but no UID found');
+        return NextResponse.json(
+          { message: 'Unauthorized: Invalid user' },
+          { status: 401 }
+        );
+      }
+      
+      const { specialty, difficulty, additionalInstructions, includeImages, numQuestions } = await req.json();
+      
+      if (!specialty) {
+        return NextResponse.json(
+          { message: 'Medical specialty is required' },
+          { status: 400 }
+        );
+      }
+      
+      // Generate the case using AI
+      const generatedCase = await generateMedicalCase(
+        specialty,
+        difficulty,
+        additionalInstructions,
+        includeImages,
+        numQuestions
+      );
+      
+      return NextResponse.json(generatedCase);
+    } catch (firebaseError) {
+      console.error('Firebase authentication error:', firebaseError);
       return NextResponse.json(
-        { message: 'Medical specialty is required' },
-        { status: 400 }
+        { message: 'Unauthorized: Invalid token' },
+        { status: 401 }
       );
     }
-    
-    // Generate the case using AI
-    const generatedCase = await generateMedicalCase(
-      specialty,
-      difficulty,
-      additionalInstructions,
-      includeImages,
-      numQuestions
-    );
-    
-    return NextResponse.json(generatedCase);
   } catch (error) {
     console.error('Error generating case with AI:', error);
     return NextResponse.json(

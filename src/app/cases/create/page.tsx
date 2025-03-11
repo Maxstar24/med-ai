@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useDropzone } from 'react-dropzone';
 import Markdown from '@/components/Markdown';
 import { motion } from 'framer-motion';
@@ -16,7 +16,7 @@ interface Answer {
 }
 
 const CreateCasePage = () => {
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
@@ -40,10 +40,10 @@ const CreateCasePage = () => {
   
   // Redirect if not logged in
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (!authLoading && !user) {
       router.push('/login?callbackUrl=/cases/create');
     }
-  }, [status, router]);
+  }, [user, authLoading, router]);
   
   // Handle image uploads
   const onDrop = async (acceptedFiles: File[]) => {
@@ -182,7 +182,7 @@ const CreateCasePage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (status !== 'authenticated') {
+    if (!user) {
       setError('You must be logged in to create a case');
       return;
     }
@@ -202,41 +202,95 @@ const CreateCasePage = () => {
     setError('');
     
     try {
+      // Get Firebase ID token
+      let idToken;
+      try {
+        idToken = await user.getIdToken(true);
+        console.log('Successfully obtained Firebase ID token, length:', idToken.length);
+      } catch (tokenError) {
+        console.error('Error getting Firebase token:', tokenError);
+        setError('Authentication error: Could not verify your identity');
+        setIsSubmitting(false);
+        return;
+      }
+      
       // Convert content from plain text to markdown if needed
       const finalContent = plainTextMode 
         ? content.split('\n').map(line => line.trim() ? line : '').join('\n\n')
         : content;
       
-      const response = await fetch('/api/cases', {
+      // Prepare the request data
+      const requestData = {
+        title,
+        description,
+        content: finalContent,
+        category,
+        tags,
+        difficulty,
+        specialties,
+        answers,
+        mediaUrls: uploadedImages,
+        isAIGenerated: false,
+      };
+      
+      console.log('Sending case data to API:', {
+        title,
+        description: description.substring(0, 50) + '...',
+        contentLength: finalContent.length,
+        category,
+        tagsCount: tags.length,
+        difficulty,
+        specialtiesCount: specialties.length,
+        answersCount: answers.length,
+        mediaUrlsCount: uploadedImages.length,
+      });
+      
+      // Use the direct API endpoint
+      const apiUrl = '/api/cases/create-direct';
+      console.log('Using API endpoint:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({
-          title,
-          description,
-          content: finalContent,
-          category,
-          tags,
-          difficulty,
-          specialties,
-          answers,
-          mediaUrls: uploadedImages,
-          isAIGenerated: false,
-        }),
+        body: JSON.stringify(requestData),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create case');
+      console.log('Response status:', response.status, response.statusText);
+      
+      // Try to parse the response as JSON
+      let responseData;
+      try {
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse.substring(0, 200) + '...');
+        
+        if (textResponse.trim()) {
+          responseData = JSON.parse(textResponse);
+          console.log('Parsed response data:', responseData);
+        } else {
+          console.error('Empty response from server');
+          throw new Error('Server returned an empty response');
+        }
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        throw new Error('Failed to parse server response');
       }
       
-      const data = await response.json();
-      router.push(`/cases/${data.caseId}`);
+      if (!response.ok) {
+        console.error('Server returned error status:', response.status);
+        throw new Error(responseData?.message || `Server error: ${response.status}`);
+      }
+      
+      // Success! Navigate to the case page
+      console.log('Case created successfully, navigating to:', `/cases/${responseData.caseId}`);
+      router.push(`/cases/${responseData.caseId}`);
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      console.error('Submission error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      console.error('Submission error:', errorMessage, err);
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -253,7 +307,7 @@ const CreateCasePage = () => {
     setContent(prev => prev + tableTemplate);
   };
   
-  if (status === 'loading') {
+  if (authLoading) {
     return (
       <div className="container mx-auto p-8 flex items-center justify-center min-h-[60vh]">
         <div className="text-center">

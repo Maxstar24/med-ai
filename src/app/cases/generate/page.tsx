@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import Markdown from '@/components/Markdown';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
 
 const GenerateCasePage = () => {
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,23 +24,34 @@ const GenerateCasePage = () => {
   
   // Redirect if not logged in
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login?callbackUrl=/cases/generate');
+    // Only redirect if authentication is complete (not loading) and user is null
+    if (!authLoading && !user) {
+      console.log('User not authenticated, redirecting to login page');
+      
+      // Add a small delay to prevent immediate redirect loops
+      const redirectTimer = setTimeout(() => {
+        router.push('/login?callbackUrl=/cases/generate');
+      }, 100);
+      
+      return () => clearTimeout(redirectTimer);
     }
-  }, [status, router]);
+  }, [user, authLoading, router]);
   
   // Handle form submission to generate a case
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Check if user is authenticated
-    if (status !== 'authenticated') {
+    if (!user) {
+      console.error('User not authenticated');
       setError('You must be logged in to generate a case');
+      router.push('/login?callbackUrl=/cases/generate');
       return;
     }
     
     // Validate form
     if (!specialty.trim()) {
+      console.error('No specialty specified');
       setError('Please specify a medical specialty');
       return;
     }
@@ -49,11 +60,35 @@ const GenerateCasePage = () => {
     setError('');
     
     try {
-      // Include session token in the request
+      console.log('Starting case generation process...');
+      
+      // Get the current user's ID token
+      let idToken;
+      try {
+        idToken = await user.getIdToken(true); // Force refresh the token
+        console.log('Successfully obtained Firebase ID token, length:', idToken.length);
+      } catch (tokenError) {
+        console.error('Error getting Firebase token:', tokenError);
+        setError('Authentication error: Could not verify your identity');
+        setIsGenerating(false);
+        return;
+      }
+      
+      console.log('Sending generation request to API...');
+      console.log('Request data:', {
+        specialty,
+        difficulty,
+        additionalInstructions: additionalInstructions?.substring(0, 50) || 'none',
+        includeImages,
+        numQuestions
+      });
+      
+      // Include the token in the request
       const response = await fetch('/api/ai/generate-case', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
           specialty,
@@ -62,28 +97,55 @@ const GenerateCasePage = () => {
           includeImages,
           numQuestions,
         }),
-        // This ensures cookies (including auth session) are sent with the request
-        credentials: 'include',
       });
       
+      console.log('Response status:', response.status);
+      
+      // Handle different response statuses
       if (response.status === 401) {
-        // Handle authentication error specifically
+        console.error('Authentication error (401)');
         setError('Authentication error: Please log in again');
         router.push('/login?callbackUrl=/cases/generate');
         return;
       }
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate case');
+      // Try to parse the response as JSON
+      let responseData;
+      try {
+        const textResponse = await response.text();
+        console.log('Raw response length:', textResponse.length);
+        console.log('Raw response preview:', textResponse.substring(0, 200) + '...');
+        
+        if (textResponse.trim()) {
+          responseData = JSON.parse(textResponse);
+          console.log('Parsed response data:', {
+            title: responseData?.title,
+            description: responseData?.description?.substring(0, 50) + '...',
+            contentLength: responseData?.content?.length || 0
+          });
+        } else {
+          console.error('Empty response from server');
+          throw new Error('Server returned an empty response');
+        }
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        throw new Error('Failed to parse server response');
       }
       
-      const data = await response.json();
-      setGeneratedCase(data);
+      // Check if the response was successful
+      if (!response.ok) {
+        console.error('Server returned error status:', response.status);
+        throw new Error(responseData?.message || `Server error: ${response.status}`);
+      }
+      
+      // Success! Set the generated case
+      console.log('Case generated successfully');
+      setGeneratedCase(responseData);
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      console.error('Generation error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      console.error('Generation error:', errorMessage, err);
+      setError(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -91,34 +153,102 @@ const GenerateCasePage = () => {
   
   // Handle saving the generated case
   const handleSaveCase = async () => {
-    if (!generatedCase) return;
+    if (!generatedCase) {
+      console.error('No case to save');
+      setError('No case data to save');
+      return;
+    }
+    
+    // Check if user is authenticated
+    if (!user) {
+      console.error('User not authenticated');
+      setError('You must be logged in to save a case');
+      router.push('/login?callbackUrl=/cases/generate');
+      return;
+    }
     
     setIsSubmitting(true);
     setError('');
     
     try {
-      const response = await fetch('/api/cases', {
+      console.log('Starting case save process...');
+      
+      // Get the current user's ID token
+      let idToken;
+      try {
+        idToken = await user.getIdToken(true); // Force refresh the token
+        console.log('Successfully obtained Firebase ID token for saving, length:', idToken.length);
+      } catch (tokenError) {
+        console.error('Error getting Firebase token for saving:', tokenError);
+        setError('Authentication error: Could not verify your identity');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Prepare the case data
+      const caseData = {
+        ...generatedCase,
+        isAIGenerated: true,
+        userFirebaseUid: user.uid // Add the user's Firebase UID
+      };
+      
+      console.log('Sending case data to API...');
+      console.log('Case data preview:', {
+        title: caseData.title,
+        description: caseData.description?.substring(0, 50) + '...',
+        contentLength: caseData.content?.length || 0,
+        category: caseData.category,
+        difficulty: caseData.difficulty,
+        numAnswers: caseData.answers?.length || 0
+      });
+      
+      // Use the simplified direct save endpoint
+      const apiUrl = '/api/cases/save-direct';
+      console.log('Using API endpoint:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({
-          ...generatedCase,
-          isAIGenerated: true,
-        }),
+        body: JSON.stringify(caseData),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save case');
+      console.log('Response status:', response.status, response.statusText);
+      
+      // Try to parse the response as JSON
+      let responseData;
+      try {
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse.substring(0, 200) + '...');
+        
+        if (textResponse.trim()) {
+          responseData = JSON.parse(textResponse);
+          console.log('Parsed response data:', responseData);
+        } else {
+          console.error('Empty response from server');
+          throw new Error('Server returned an empty response');
+        }
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        throw new Error('Failed to parse server response');
       }
       
-      const data = await response.json();
-      router.push(`/cases/${data.caseId}`);
+      // Check if the response was successful
+      if (!response.ok) {
+        console.error('Server returned error status:', response.status);
+        throw new Error(responseData?.message || `Server error: ${response.status}`);
+      }
+      
+      // Success! Navigate to the case page
+      console.log('Case saved successfully, navigating to:', `/cases/${responseData.caseId}`);
+      router.push(`/cases/${responseData.caseId}`);
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      console.error('Save error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      console.error('Save error:', errorMessage, err);
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -129,7 +259,7 @@ const GenerateCasePage = () => {
     setGeneratedCase(null);
   };
   
-  if (status === 'loading') {
+  if (authLoading) {
     return (
       <div className="container mx-auto p-8 flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
@@ -139,20 +269,6 @@ const GenerateCasePage = () => {
       </div>
     );
   }
-  
-  // Debug function to check session
-  const checkSession = async () => {
-    try {
-      const response = await fetch('/api/auth/session', {
-        credentials: 'include',
-      });
-      const data = await response.json();
-      console.log('Session check:', data);
-      alert(`Session status: ${data.authenticated ? 'Authenticated' : 'Not authenticated'}`);
-    } catch (error) {
-      console.error('Session check error:', error);
-    }
-  };
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -172,14 +288,6 @@ const GenerateCasePage = () => {
               </p>
             </div>
           </div>
-          
-          {/* Debug button - remove in production */}
-          <button
-            onClick={checkSession}
-            className="text-sm text-muted-foreground hover:text-primary"
-          >
-            Check Session
-          </button>
         </div>
         
         {error && (

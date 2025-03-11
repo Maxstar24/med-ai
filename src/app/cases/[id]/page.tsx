@@ -9,9 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BookOpen, Clock, Tag, User, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, BookOpen, Clock, Tag, User, AlertCircle, ChevronDown, ChevronUp, Bookmark, BookmarkCheck } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -59,10 +61,14 @@ interface CaseData {
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedAnswers, setExpandedAnswers] = useState<Record<string, boolean>>({});
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
   useEffect(() => {
     const fetchCase = async () => {
@@ -95,6 +101,31 @@ export default function CaseDetailPage() {
       fetchCase();
     }
   }, [params.id]);
+
+  // Check if the case is bookmarked
+  useEffect(() => {
+    const checkBookmarkStatus = async () => {
+      if (!user || !params.id) return;
+      
+      try {
+        const idToken = await user.getIdToken(true);
+        const response = await fetch(`/api/cases/bookmark?caseId=${params.id}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setIsBookmarked(data.isBookmarked);
+        }
+      } catch (err) {
+        console.error('Error checking bookmark status:', err);
+      }
+    };
+    
+    checkBookmarkStatus();
+  }, [user, params.id]);
 
   const handleGoBack = () => {
     router.back();
@@ -184,6 +215,57 @@ export default function CaseDetailPage() {
     });
   };
 
+  // Toggle bookmark
+  const toggleBookmark = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to bookmark cases",
+        variant: "destructive"
+      });
+      router.push(`/login?callbackUrl=/cases/${params.id}`);
+      return;
+    }
+    
+    try {
+      setBookmarkLoading(true);
+      
+      const idToken = await user.getIdToken(true);
+      const response = await fetch('/api/cases/bookmark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ caseId: params.id })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setIsBookmarked(data.isBookmarked);
+        
+        toast({
+          title: data.isBookmarked ? "Case bookmarked" : "Bookmark removed",
+          description: data.isBookmarked 
+            ? "This case has been added to your saved cases" 
+            : "This case has been removed from your saved cases",
+          variant: "default"
+        });
+      } else {
+        throw new Error('Failed to toggle bookmark');
+      }
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+      toast({
+        title: "Error",
+        description: "Failed to update bookmark status",
+        variant: "destructive"
+      });
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -241,10 +323,37 @@ export default function CaseDetailPage() {
       >
         <div className="absolute inset-0 bg-grid-white dark:bg-grid-dark [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.5))]" />
         <div className="relative z-10">
-          <Button variant="ghost" size="sm" className="mb-4" onClick={handleGoBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+          <div className="flex justify-between items-center mb-4">
+            <Button variant="ghost" size="sm" onClick={handleGoBack}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={toggleBookmark}
+              disabled={bookmarkLoading}
+              className={cn(
+                "transition-all",
+                isBookmarked ? "bg-primary/10 text-primary hover:bg-primary/20" : ""
+              )}
+            >
+              {bookmarkLoading ? (
+                <span className="animate-pulse">Processing...</span>
+              ) : isBookmarked ? (
+                <>
+                  <BookmarkCheck className="h-4 w-4 mr-2" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Bookmark className="h-4 w-4 mr-2" />
+                  Save
+                </>
+              )}
+            </Button>
+          </div>
           <h1 className="text-3xl font-bold tracking-tight">{caseData?.title}</h1>
           <p className="mt-2 text-muted-foreground max-w-3xl">{caseData?.description}</p>
         </div>
