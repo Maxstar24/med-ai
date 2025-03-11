@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -26,7 +26,7 @@ interface Quiz {
 export default function QuizPage() {
   const router = useRouter();
   const params = useParams();
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,17 +35,25 @@ export default function QuizPage() {
   const quizId = Array.isArray(params.id) ? params.id[0] : params.id as string;
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
+    if (!authLoading && !user) {
+      router.push('/login?callbackUrl=/quizzes/' + quizId);
       return;
     }
 
     // Fetch quiz data once authenticated
-    if (status === 'authenticated' && quizId && quizId !== 'undefined') {
+    if (!authLoading && user && quizId && quizId !== 'undefined') {
       const fetchQuiz = async () => {
         try {
           console.log('Fetching quiz with ID:', quizId);
-          const response = await fetch(`/api/quizzes/${quizId}`);
+          
+          // Get Firebase ID token for authentication
+          const idToken = await user.getIdToken(true);
+          
+          const response = await fetch(`/api/quizzes/${quizId}`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
           
           if (!response.ok) {
             throw new Error(`Failed to fetch quiz (Status: ${response.status})`);
@@ -68,12 +76,12 @@ export default function QuizPage() {
       setError('Invalid quiz ID');
       setLoading(false);
     }
-  }, [quizId, router, status]);
+  }, [quizId, router, user, authLoading]);
 
   // Helper function to get the quiz ID, handling both id and _id properties
   const getQuizId = (quiz: Quiz) => quiz?._id || quiz?.id;
 
-  if (status === 'loading' || loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />

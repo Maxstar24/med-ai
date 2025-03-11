@@ -1,25 +1,70 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/mongodb';
 import QuizResult from '@/models/QuizResult';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
+import { getAuth } from 'firebase-admin/auth';
+import { DecodedIdToken } from 'firebase-admin/auth';
+
+// Define types for question and option
+interface QuizQuestion {
+  _id: mongoose.Types.ObjectId | string;
+  type: 'multiple-choice' | 'true-false' | 'spot' | 'saq';
+  options: any[];
+  correctAnswer: string | string[];
+}
+
+// Define a more flexible schema for different question types
+const answerSchema = z.union([
+  // For multiple choice and true/false questions
+  z.object({
+    questionId: z.string(),
+    selectedOptionIds: z.array(z.string()).optional(),
+    userAnswer: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    isCorrect: z.boolean().optional(),
+    timeSpent: z.number().optional(),
+  }),
+  // For spot (image identification) questions
+  z.object({
+    questionId: z.string(),
+    shortAnswer: z.string().optional(),
+    userAnswer: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    isCorrect: z.boolean().optional(),
+    timeSpent: z.number().optional(),
+  }),
+  // For short answer questions
+  z.object({
+    questionId: z.string(),
+    shortAnswer: z.string().optional(),
+    userAnswer: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    isCorrect: z.boolean().optional(),
+    timeSpent: z.number().optional(),
+  })
+]);
 
 const quizResultSchema = z.object({
   quizId: z.string(),
-  score: z.number(),
-  totalQuestions: z.number(),
-  timeSpent: z.number(),
-  answers: z.array(z.object({
-    questionId: z.string(),
-    userAnswer: z.union([z.string(), z.number(), z.boolean()]),
-    isCorrect: z.boolean(),
-    timeSpent: z.number().optional(),
-  })),
-  completedAt: z.string().datetime(),
+  answers: z.array(answerSchema),
 });
+
+// Helper function to verify Firebase token
+async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedIdToken | null> {
+  try {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    
+    // Verify the token
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return null;
+  }
+}
 
 // GET: Fetch quiz results for a user (with optional quiz filter)
 export async function GET(request: Request) {
@@ -27,9 +72,11 @@ export async function GET(request: Request) {
     // Connect to the database
     await connectToDatabase();
     
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -38,7 +85,7 @@ export async function GET(request: Request) {
     const quizId = searchParams.get('quizId');
     
     // Build the query based on parameters
-    const query: any = { userId: session.user.id };
+    const query: Record<string, any> = { userId: decodedToken.uid };
     if (quizId) {
       query.quizId = new mongoose.Types.ObjectId(quizId);
     }
@@ -49,7 +96,7 @@ export async function GET(request: Request) {
       .lean();
     
     // Calculate statistics
-    const stats = await calculateUserStats(session.user.id);
+    const stats = await calculateUserStats(decodedToken.uid);
     
     return NextResponse.json({ results, stats });
   } catch (error) {
@@ -67,9 +114,11 @@ export async function POST(request: Request) {
     // Connect to the database
     await connectToDatabase();
     
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -78,7 +127,7 @@ export async function POST(request: Request) {
     console.log('Request body:', body);
     
     // Validate required fields
-    if (!body.quizId || !body.score || body.answers === undefined) {
+    if (!body.quizId || !body.answers) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -98,9 +147,78 @@ export async function POST(request: Request) {
     // Calculate total questions
     const totalQuestions = quiz.questions.length;
     
+    // Process answers and calculate score
+    const processedAnswers = [];
+    let score = 0;
+    
+    for (let i = 0; i < body.answers.length; i++) {
+      const answer = body.answers[i];
+      const question = quiz.questions.find((q: QuizQuestion) => q._id.toString() === answer.questionId);
+      
+      if (!question) continue;
+      
+      let isCorrect = false;
+      let userAnswer: string | null = null;
+      
+      // Handle different question types
+      if (question.type === 'multiple-choice' || question.type === 'true-false') {
+        // For multiple choice and true/false questions
+        if (answer.selectedOptionIds && answer.selectedOptionIds.length > 0) {
+          const selectedOption = question.options.find((opt: any, idx: number) => {
+            const optionId = `option-${i}-${idx}`;
+            return answer.selectedOptionIds.includes(optionId);
+          });
+          
+          userAnswer = selectedOption || '';
+          isCorrect = userAnswer === question.correctAnswer;
+        }
+      } 
+      else if (question.type === 'spot') {
+        // For spot (image identification) questions
+        if (answer.shortAnswer && answer.shortAnswer.trim()) {
+          userAnswer = answer.shortAnswer.trim().toLowerCase();
+          
+          // Check against all acceptable answers
+          if (Array.isArray(question.correctAnswer)) {
+            isCorrect = question.correctAnswer.some(
+              (correct: string) => correct.toLowerCase() === userAnswer
+            );
+          } else {
+            isCorrect = (question.correctAnswer as string).toLowerCase() === userAnswer;
+          }
+        }
+      }
+      else if (question.type === 'saq') {
+        // For short answer questions
+        if (answer.shortAnswer && answer.shortAnswer.trim()) {
+          userAnswer = answer.shortAnswer.trim().toLowerCase();
+          
+          // Check against all acceptable answers
+          if (Array.isArray(question.correctAnswer)) {
+            isCorrect = question.correctAnswer.some(
+              (correct: string) => correct.toLowerCase() === userAnswer
+            );
+          } else {
+            isCorrect = (question.correctAnswer as string).toLowerCase() === userAnswer;
+          }
+        }
+      }
+      
+      // Add to processed answers
+      processedAnswers.push({
+        questionId: answer.questionId,
+        userAnswer,
+        isCorrect,
+        timeSpent: answer.timeSpent || 0
+      });
+      
+      // Update score
+      if (isCorrect) score++;
+    }
+    
     // Check if this user has previous results for this quiz
     const previousResult = await QuizResult.findOne({ 
-      userId: session.user.id,
+      userId: decodedToken.uid,
       quizId: body.quizId 
     }).sort({ completedAt: -1 });
     console.log('Previous result:', previousResult);
@@ -111,7 +229,7 @@ export async function POST(request: Request) {
     
     if (previousResult) {
       const prevScore = previousResult.score / previousResult.totalQuestions;
-      const currentScore = body.score / totalQuestions;
+      const currentScore = score / totalQuestions;
       const improvementPercentage = ((currentScore - prevScore) * 100).toFixed(0);
       
       if (Number(improvementPercentage) > 0) {
@@ -138,11 +256,11 @@ export async function POST(request: Request) {
     // Create the quiz result
     const quizResult = new QuizResult({
       quizId: body.quizId,
-      userId: session.user.id,
-      score: body.score,
+      userId: decodedToken.uid,
+      score,
       totalQuestions,
       timeSpent: body.timeSpent || 0,
-      answers: body.answers,
+      answers: processedAnswers,
       completedAt: new Date(),
       improvement,
       streak
@@ -161,7 +279,8 @@ export async function POST(request: Request) {
     
     return NextResponse.json({
       message: 'Quiz result submitted successfully',
-      result: resultWithQuizInfo
+      result: resultWithQuizInfo,
+      resultId: quizResult._id
     }, { status: 201 });
     
   } catch (error) {

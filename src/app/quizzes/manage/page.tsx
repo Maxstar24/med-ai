@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { redirect, useRouter } from 'next/navigation';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,7 +38,8 @@ interface Quiz {
 }
 
 export default function ManageQuizzesPage() {
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,13 +49,15 @@ export default function ManageQuizzesPage() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      redirect('/login');
+    if (!authLoading && !user) {
+      router.push('/login?callbackUrl=/quizzes/manage');
     }
-  }, [status]);
+  }, [user, authLoading, router]);
 
   // Fetch quizzes
   const fetchQuizzes = useCallback(async () => {
+    if (authLoading || !user) return;
+    
     try {
       setLoading(true);
       
@@ -67,7 +70,15 @@ export default function ManageQuizzesPage() {
       if (selectedTopic !== 'all') params.append('topic', selectedTopic);
       if (selectedDifficulty !== 'all') params.append('difficulty', selectedDifficulty);
       
-      const response = await fetch(`${endpoint}?${params.toString()}`);
+      // Get Firebase ID token for authentication
+      const idToken = await user.getIdToken(true);
+      
+      const response = await fetch(`${endpoint}?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
       const data = await response.json();
       
       if (response.ok) {
@@ -80,13 +91,13 @@ export default function ManageQuizzesPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, selectedTopic, selectedDifficulty]);
+  }, [activeTab, selectedTopic, selectedDifficulty, user, authLoading]);
 
   useEffect(() => {
-    if (status === 'authenticated') {
+    if (!authLoading && user) {
       fetchQuizzes();
     }
-  }, [status, fetchQuizzes]);
+  }, [user, authLoading, fetchQuizzes]);
 
   // Filter quizzes based on search term
   const filteredQuizzes = quizzes.filter(quiz => 
@@ -98,8 +109,14 @@ export default function ManageQuizzesPage() {
   const handleDeleteQuiz = async (id: string) => {
     if (confirm('Are you sure you want to delete this quiz? This action cannot be undone.')) {
       try {
+        // Get Firebase ID token for authentication
+        const idToken = await user?.getIdToken(true);
+        
         const response = await fetch(`/api/quizzes/${id}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
         });
         
         if (response.ok) {
@@ -118,10 +135,14 @@ export default function ManageQuizzesPage() {
   // Toggle quiz publicity
   const toggleQuizPublicity = async (id: string, isCurrentlyPublic: boolean) => {
     try {
+      // Get Firebase ID token for authentication
+      const idToken = await user?.getIdToken(true);
+      
       const response = await fetch(`/api/quizzes/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({ isPublic: !isCurrentlyPublic })
       });
@@ -145,8 +166,16 @@ export default function ManageQuizzesPage() {
   // Create a copy of a quiz
   const duplicateQuiz = async (quizId: string) => {
     try {
+      // Get Firebase ID token for authentication
+      const idToken = await user?.getIdToken(true);
+      
       // First fetch the quiz details
-      const response = await fetch(`/api/quizzes/${quizId}`);
+      const response = await fetch(`/api/quizzes/${quizId}`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
       const data = await response.json();
       
       if (!response.ok) {
@@ -169,6 +198,7 @@ export default function ManageQuizzesPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify(newQuizData)
       });
@@ -186,7 +216,7 @@ export default function ManageQuizzesPage() {
     }
   };
 
-  if (status === 'loading') {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />

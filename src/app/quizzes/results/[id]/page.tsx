@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, X, ArrowLeft, Medal, Clock, Award } from 'lucide-react';
+import { Check, X, ArrowLeft, Medal, Clock, Award, Image, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Answer {
@@ -15,14 +15,17 @@ interface Answer {
   userAnswer: string | number | boolean;
   isCorrect: boolean;
   timeSpent: number;
+  shortAnswer?: string;
+  selectedOptionIds?: string[];
 }
 
 interface Question {
-  type: string;
+  type: 'multiple-choice' | 'true-false' | 'spot' | 'saq';
   question: string;
   options: string[];
-  correctAnswer: string | number | boolean;
+  correctAnswer: string | number | boolean | string[];
   explanation: string;
+  imageUrl?: string;
 }
 
 interface QuizResult {
@@ -44,27 +47,41 @@ export default function QuizResultPage({
 }: {
   params: { id: string }
 }) {
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [result, setResult] = useState<QuizResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      redirect('/login');
+    if (!authLoading && !user) {
+      router.push('/login?callbackUrl=/quizzes/results/' + params.id);
     }
-  }, [status]);
+  }, [user, authLoading, router, params.id]);
 
   useEffect(() => {
     const fetchResult = async () => {
-      if (status !== 'authenticated') return;
+      if (authLoading || !user) return;
 
       try {
-        const response = await fetch(`/api/quizzes/results/${params.id}`);
+        // Get Firebase ID token for authentication
+        const idToken = await user.getIdToken(true);
+        
+        const response = await fetch(`/api/quizzes/results/${params.id}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
         const data = await response.json();
 
         if (response.ok) {
-          setResult(data.result);
+          // Calculate percentage score
+          const percentageScore = Math.round((data.result.score / data.result.totalQuestions) * 100);
+          setResult({
+            ...data.result,
+            percentageScore
+          });
         } else {
           setError(data.error || 'Failed to fetch quiz result');
         }
@@ -76,9 +93,37 @@ export default function QuizResultPage({
     };
 
     fetchResult();
-  }, [status, params.id]);
+  }, [user, authLoading, params.id]);
 
-  if (loading) {
+  // Helper function to get question type icon
+  const getQuestionTypeIcon = (type: string) => {
+    switch (type) {
+      case 'spot':
+        return <Image className="h-5 w-5 text-blue-500" />;
+      case 'saq':
+        return <MessageSquare className="h-5 w-5 text-purple-500" />;
+      default:
+        return null;
+    }
+  };
+
+  // Helper function to get question type label
+  const getQuestionTypeLabel = (type: string) => {
+    switch (type) {
+      case 'multiple-choice':
+        return 'Multiple Choice';
+      case 'true-false':
+        return 'True/False';
+      case 'spot':
+        return 'Image Identification';
+      case 'saq':
+        return 'Short Answer';
+      default:
+        return type;
+    }
+  };
+
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />
@@ -187,78 +232,124 @@ export default function QuizResultPage({
 
           <div className="space-y-6">
             {result.questions.map((question, index) => (
-              <Card key={index} className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      Question {index + 1}
-                    </h3>
-                    <p className="text-lg mb-4">{question.question}</p>
-                  </div>
-                  {result.answers[index].isCorrect ? (
-                    <div className="flex items-center text-green-500">
-                      <Check className="h-6 w-6 mr-2" />
-                      Correct
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+              >
+                <Card className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center">
+                      <h3 className="text-xl font-semibold mb-2 mr-2">
+                        Question {index + 1}
+                      </h3>
+                      {getQuestionTypeIcon(question.type)}
+                      <span className="text-sm text-muted-foreground ml-2">
+                        {getQuestionTypeLabel(question.type)}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="flex items-center text-red-500">
-                      <X className="h-6 w-6 mr-2" />
-                      Incorrect
+                    {result.answers[index].isCorrect ? (
+                      <div className="flex items-center text-green-500">
+                        <Check className="h-6 w-6 mr-2" />
+                        Correct
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-red-500">
+                        <X className="h-6 w-6 mr-2" />
+                        Incorrect
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-lg mb-4">{question.question}</p>
+
+                  {/* Image for Spot Questions */}
+                  {question.type === 'spot' && question.imageUrl && (
+                    <div className="relative border rounded-md overflow-hidden mb-6">
+                      <img 
+                        src={question.imageUrl} 
+                        alt="Image identification question" 
+                        className="max-w-full h-auto mx-auto max-h-96 object-contain"
+                      />
                     </div>
                   )}
-                </div>
 
-                {question.type === 'multiple-choice' && (
-                  <div className="space-y-2 mb-4">
-                    {question.options.map((option, optionIndex) => (
+                  {/* Multiple Choice Question */}
+                  {question.type === 'multiple-choice' && (
+                    <div className="space-y-2 mb-4">
+                      {question.options.map((option, optionIndex) => (
+                        <div
+                          key={optionIndex}
+                          className={`p-3 rounded-md ${
+                            option === question.correctAnswer
+                              ? 'bg-green-100 border border-green-500'
+                              : option === result.answers[index].userAnswer
+                              ? 'bg-red-100 border border-red-500'
+                              : 'bg-secondary'
+                          }`}
+                        >
+                          {option}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* True/False Question */}
+                  {question.type === 'true-false' && (
+                    <div className="flex gap-4 mb-4">
                       <div
-                        key={optionIndex}
                         className={`p-3 rounded-md ${
-                          option === question.correctAnswer
-                            ? 'bg-green-100 border-green-500'
-                            : option === result.answers[index].userAnswer
-                            ? 'bg-red-100 border-red-500'
+                          question.correctAnswer === true
+                            ? 'bg-green-100 border border-green-500'
+                            : result.answers[index].userAnswer === true
+                            ? 'bg-red-100 border border-red-500'
                             : 'bg-secondary'
                         }`}
                       >
-                        {option}
+                        True
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {question.type === 'true-false' && (
-                  <div className="flex gap-4 mb-4">
-                    <div
-                      className={`p-3 rounded-md ${
-                        question.correctAnswer === true
-                          ? 'bg-green-100 border-green-500'
-                          : result.answers[index].userAnswer === true
-                          ? 'bg-red-100 border-red-500'
-                          : 'bg-secondary'
-                      }`}
-                    >
-                      True
+                      <div
+                        className={`p-3 rounded-md ${
+                          question.correctAnswer === false
+                            ? 'bg-green-100 border border-green-500'
+                            : result.answers[index].userAnswer === false
+                            ? 'bg-red-100 border border-red-500'
+                            : 'bg-secondary'
+                        }`}
+                      >
+                        False
+                      </div>
                     </div>
-                    <div
-                      className={`p-3 rounded-md ${
-                        question.correctAnswer === false
-                          ? 'bg-green-100 border-green-500'
-                          : result.answers[index].userAnswer === false
-                          ? 'bg-red-100 border-red-500'
-                          : 'bg-secondary'
-                      }`}
-                    >
-                      False
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="mt-4">
-                  <h4 className="font-semibold mb-2">Explanation</h4>
-                  <p className="text-muted-foreground">{question.explanation}</p>
-                </div>
-              </Card>
+                  {/* Short Answer Question or Spot Question */}
+                  {(question.type === 'saq' || question.type === 'spot') && (
+                    <div className="mb-4">
+                      <div className="mb-2">
+                        <h4 className="font-semibold">Your Answer:</h4>
+                        <p className={`p-3 rounded-md ${result.answers[index].isCorrect ? 'bg-green-100 border border-green-500' : 'bg-red-100 border border-red-500'}`}>
+                          {(result.answers[index].shortAnswer || result.answers[index].userAnswer as string) || '(No answer provided)'}
+                        </p>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <h4 className="font-semibold">Correct Answer:</h4>
+                        <div className="p-3 rounded-md bg-green-100 border border-green-500">
+                          {Array.isArray(question.correctAnswer) 
+                            ? question.correctAnswer.join(' or ') 
+                            : question.correctAnswer as string}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <h4 className="font-semibold mb-2">Explanation</h4>
+                    <p className="text-muted-foreground">{question.explanation}</p>
+                  </div>
+                </Card>
+              </motion.div>
             ))}
           </div>
         </motion.div>

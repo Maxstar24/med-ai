@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,24 +32,39 @@ interface QuizStats {
 }
 
 export default function QuizHistoryPage() {
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [results, setResults] = useState<QuizResult[]>([]);
   const [stats, setStats] = useState<QuizStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('all');
 
   // Redirect if not authenticated
-  if (status === 'unauthenticated') {
-    redirect('/login');
-  }
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login?callbackUrl=/quizzes/history');
+    }
+  }, [user, authLoading, router]);
 
   useEffect(() => {
-    fetchResults();
-  }, [selectedTimeframe]);
+    if (!authLoading && user) {
+      fetchResults();
+    }
+  }, [selectedTimeframe, user, authLoading]);
 
   const fetchResults = async () => {
+    if (!user) return;
+    
     try {
-      const response = await fetch('/api/quizzes/results');
+      // Get Firebase ID token for authentication
+      const idToken = await user.getIdToken(true);
+      
+      const response = await fetch('/api/quizzes/results', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
       const data = await response.json();
       
       if (response.ok) {
@@ -81,7 +96,7 @@ export default function QuizHistoryPage() {
     });
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />

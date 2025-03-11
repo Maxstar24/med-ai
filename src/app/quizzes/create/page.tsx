@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,19 +16,21 @@ import { Plus, Trash, ArrowLeft, ArrowRight, Save, Download, Eye } from 'lucide-
 
 interface Question {
   id: string;
-  type: 'multiple-choice' | 'true-false' | 'fill-in-blank' | 'matching';
+  type: 'multiple-choice' | 'true-false' | 'fill-in-blank' | 'matching' | 'spot' | 'saq';
   question: string;
   options: string[];
-  correctAnswer: string | boolean;
+  correctAnswer: string | boolean | string[];
   explanation: string;
   difficulty: string;
   topic: string;
   tags: string[];
+  imageUrl?: string;
+  spotCoordinates?: { x: number; y: number; radius: number; label: string }[];
 }
 
 export default function CreateQuizPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   
   // Quiz data
   const [title, setTitle] = useState('');
@@ -44,13 +46,16 @@ export default function CreateQuizPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   
   // Current question fields
-  const [questionType, setQuestionType] = useState<'multiple-choice' | 'true-false' | 'fill-in-blank' | 'matching'>('multiple-choice');
+  const [questionType, setQuestionType] = useState<'multiple-choice' | 'true-false' | 'fill-in-blank' | 'matching' | 'spot' | 'saq'>('multiple-choice');
   const [questionText, setQuestionText] = useState('');
   const [options, setOptions] = useState<string[]>(['', '', '', '']);
-  const [correctAnswer, setCorrectAnswer] = useState<string | boolean>('');
+  const [correctAnswer, setCorrectAnswer] = useState<string | boolean | string[]>('');
   const [explanation, setExplanation] = useState('');
   const [questionTags, setQuestionTags] = useState<string[]>([]);
   const [questionTagInput, setQuestionTagInput] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [spotCoordinates, setSpotCoordinates] = useState<{ x: number; y: number; radius: number; label: string }[]>([]);
+  const [acceptableAnswers, setAcceptableAnswers] = useState<string[]>(['']);
   
   // UI states
   const [loading, setLoading] = useState(false);
@@ -58,10 +63,10 @@ export default function CreateQuizPage() {
 
   // Redirect if not authenticated
   React.useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
+    if (!authLoading && !user) {
+      router.push('/login?callbackUrl=/quizzes/create');
     }
-  }, [status, router]);
+  }, [user, authLoading, router]);
 
   // Add a new question
   const addQuestion = () => {
@@ -74,12 +79,21 @@ export default function CreateQuizPage() {
       options: questionType === 'multiple-choice' ? options.filter(o => o.trim()) : options,
       correctAnswer: questionType === 'true-false' 
         ? correctAnswer === 'true' 
+        : questionType === 'saq'
+        ? acceptableAnswers.filter(a => a.trim())
+        : questionType === 'spot'
+        ? [correctAnswer as string, ...acceptableAnswers.filter(a => a.trim())]
         : correctAnswer,
       explanation,
       difficulty: difficulty || 'intermediate',
       topic: topic || '',
       tags: questionTags
     };
+    
+    // Add image URL for spot questions
+    if (questionType === 'spot') {
+      newQuestion.imageUrl = imageUrl;
+    }
     
     setQuestions([...questions, newQuestion]);
     resetQuestionForm();
@@ -98,12 +112,21 @@ export default function CreateQuizPage() {
       options: questionType === 'multiple-choice' ? options.filter(o => o.trim()) : options,
       correctAnswer: questionType === 'true-false' 
         ? correctAnswer === 'true' 
+        : questionType === 'saq'
+        ? acceptableAnswers.filter(a => a.trim())
+        : questionType === 'spot'
+        ? [correctAnswer as string, ...acceptableAnswers.filter(a => a.trim())]
         : correctAnswer,
       explanation,
       difficulty: difficulty || 'intermediate',
       topic: topic || '',
       tags: questionTags
     };
+    
+    // Add image URL for spot questions
+    if (questionType === 'spot') {
+      updatedQuestions[currentQuestionIndex].imageUrl = imageUrl;
+    }
     
     setQuestions(updatedQuestions);
   };
@@ -133,13 +156,31 @@ export default function CreateQuizPage() {
       ? [...question.options, '', '', '', ''].slice(0, 4)
       : question.options
     );
-    setCorrectAnswer(
-      typeof question.correctAnswer === 'boolean' 
-        ? question.correctAnswer ? 'true' : 'false'
-        : question.correctAnswer
-    );
+    
+    if (question.type === 'true-false') {
+      setCorrectAnswer(
+        typeof question.correctAnswer === 'boolean' 
+          ? question.correctAnswer ? 'true' : 'false'
+          : question.correctAnswer
+      );
+    } else if (question.type === 'saq' && Array.isArray(question.correctAnswer)) {
+      setAcceptableAnswers([...question.correctAnswer, '']);
+    } else if (question.type === 'spot' && Array.isArray(question.correctAnswer)) {
+      // For spot questions, the first item is the main correct answer
+      // and the rest are alternative acceptable answers
+      setCorrectAnswer(question.correctAnswer[0] || '');
+      setAcceptableAnswers(question.correctAnswer.slice(1).concat(''));
+    } else {
+      setCorrectAnswer(question.correctAnswer as string);
+    }
+    
     setExplanation(question.explanation);
     setQuestionTags(question.tags || []);
+    
+    // Load image URL for spot questions
+    if (question.type === 'spot') {
+      setImageUrl(question.imageUrl || '');
+    }
   };
 
   // Reset the question form for a new question
@@ -151,6 +192,9 @@ export default function CreateQuizPage() {
     setExplanation('');
     setQuestionTags([]);
     setQuestionTagInput('');
+    setImageUrl('');
+    setSpotCoordinates([]);
+    setAcceptableAnswers(['']);
     setErrors({});
   };
 
@@ -203,6 +247,48 @@ export default function CreateQuizPage() {
     setQuestionTags(questionTags.filter(tag => tag !== tagToRemove));
   };
 
+  // Add a new acceptable answer for SAQ
+  const addAcceptableAnswer = () => {
+    setAcceptableAnswers([...acceptableAnswers, '']);
+  };
+
+  // Update an acceptable answer for SAQ
+  const updateAcceptableAnswer = (index: number, value: string) => {
+    const newAnswers = [...acceptableAnswers];
+    newAnswers[index] = value;
+    setAcceptableAnswers(newAnswers);
+  };
+
+  // Remove an acceptable answer for SAQ
+  const removeAcceptableAnswer = (index: number) => {
+    if (acceptableAnswers.length <= 1) return;
+    const newAnswers = [...acceptableAnswers];
+    newAnswers.splice(index, 1);
+    setAcceptableAnswers(newAnswers);
+  };
+
+  // Add a spot coordinate for spot questions
+  const addSpotCoordinate = () => {
+    setSpotCoordinates([
+      ...spotCoordinates,
+      { x: 50, y: 50, radius: 10, label: `Spot ${spotCoordinates.length + 1}` }
+    ]);
+  };
+
+  // Update a spot coordinate for spot questions
+  const updateSpotCoordinate = (index: number, field: string, value: any) => {
+    const newCoordinates = [...spotCoordinates];
+    newCoordinates[index] = { ...newCoordinates[index], [field]: value };
+    setSpotCoordinates(newCoordinates);
+  };
+
+  // Remove a spot coordinate for spot questions
+  const removeSpotCoordinate = (index: number) => {
+    const newCoordinates = [...spotCoordinates];
+    newCoordinates.splice(index, 1);
+    setSpotCoordinates(newCoordinates);
+  };
+
   // Validate quiz data before submission
   const validateQuiz = () => {
     const newErrors: Record<string, string> = {};
@@ -233,6 +319,18 @@ export default function CreateQuizPage() {
       newErrors.correctAnswer = 'Select True or False';
     }
     
+    if (questionType === 'spot') {
+      if (!imageUrl.trim()) newErrors.imageUrl = 'Image URL is required';
+      if (!correctAnswer || (typeof correctAnswer === 'string' && !correctAnswer.trim())) {
+        newErrors.correctAnswer = 'Correct identification answer is required';
+      }
+    }
+    
+    if (questionType === 'saq') {
+      const filledAnswers = acceptableAnswers.filter(a => a.trim()).length;
+      if (filledAnswers === 0) newErrors.acceptableAnswers = 'At least one acceptable answer is required';
+    }
+    
     if (!explanation.trim()) newErrors.explanation = 'Explanation is required';
     
     setErrors(newErrors);
@@ -248,34 +346,44 @@ export default function CreateQuizPage() {
       updateQuestion();
     }
     
-    setLoading(true);
-    
     try {
+      setLoading(true);
+      
+      // Get Firebase ID token for authentication
+      const idToken = await user?.getIdToken(true);
+      
       const response = await fetch('/api/quizzes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
           title,
           description,
+          questions,
           topic,
           difficulty,
           isPublic,
-          questions,
-        }),
+          tags
+        })
       });
       
       const data = await response.json();
       
       if (response.ok) {
-        router.push(`/quizzes/manage?success=true`);
+        // Clear any saved draft
+        localStorage.removeItem('quizDraft');
+        
+        // Redirect to the quiz page
+        router.push(`/quizzes/${data.quiz.id}`);
       } else {
+        console.error('Failed to create quiz:', data.error);
         setErrors({ submit: data.error || 'Failed to create quiz' });
       }
     } catch (error) {
       console.error('Error creating quiz:', error);
-      setErrors({ submit: 'An error occurred while saving the quiz' });
+      setErrors({ submit: 'An unexpected error occurred' });
     } finally {
       setLoading(false);
     }
@@ -321,7 +429,7 @@ export default function CreateQuizPage() {
 
   // Initialize the form with a draft if available
   React.useEffect(() => {
-    if (status === 'authenticated') {
+    if (authLoading) {
       const draftData = localStorage.getItem('quiz_draft');
       if (draftData) {
         // Ask user if they want to load the draft
@@ -332,7 +440,7 @@ export default function CreateQuizPage() {
         }
       }
     }
-  }, [status]);
+  }, [authLoading]);
 
   // Update the options array when editing an option
   const handleOptionChange = (index: number, value: string) => {
@@ -341,7 +449,7 @@ export default function CreateQuizPage() {
     setOptions(newOptions);
   };
 
-  if (status === 'loading') {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />
@@ -489,6 +597,8 @@ export default function CreateQuizPage() {
                     <SelectContent>
                       <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
                       <SelectItem value="true-false">True/False</SelectItem>
+                      <SelectItem value="spot">Spot Question (Image)</SelectItem>
+                      <SelectItem value="saq">Short Answer Question</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -506,8 +616,88 @@ export default function CreateQuizPage() {
                   {errors.questionText && <p className="text-red-500 text-sm mt-1">{errors.questionText}</p>}
                 </div>
                 
+                {questionType === 'spot' && (
+                  <motion.div 
+                    className="mb-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Label htmlFor="imageUrl">Image URL</Label>
+                    <Input 
+                      id="imageUrl" 
+                      value={imageUrl} 
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      placeholder="Enter image URL" 
+                      className={errors.imageUrl ? "border-red-500" : ""}
+                    />
+                    {errors.imageUrl && <p className="text-red-500 text-sm mt-1">{errors.imageUrl}</p>}
+                    
+                    {imageUrl && (
+                      <div className="mt-2 mb-4 relative border rounded-md overflow-hidden">
+                        <img 
+                          src={imageUrl} 
+                          alt="Image to identify" 
+                          className="max-w-full h-auto"
+                          onError={() => setErrors({...errors, imageUrl: 'Invalid image URL'})}
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="mt-4 mb-4">
+                      <Label>Correct Answer</Label>
+                      <Input
+                        value={typeof correctAnswer === 'string' ? correctAnswer : ''}
+                        onChange={(e) => setCorrectAnswer(e.target.value)}
+                        placeholder="Enter the correct identification"
+                        className={errors.correctAnswer ? "border-red-500" : ""}
+                      />
+                      {errors.correctAnswer && <p className="text-red-500 text-sm mt-1">{errors.correctAnswer}</p>}
+                    </div>
+                    
+                    <div className="mt-4">
+                      <Label>Alternative Acceptable Answers (Optional)</Label>
+                      {acceptableAnswers.map((answer, index) => (
+                        <div key={index} className="flex items-center gap-2 mb-2">
+                          <Input
+                            value={answer}
+                            onChange={(e) => updateAcceptableAnswer(index, e.target.value)}
+                            placeholder={`Alternative answer ${index + 1}`}
+                            className="flex-1"
+                          />
+                          <Button 
+                            type="button" 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => removeAcceptableAnswer(index)}
+                            disabled={index === 0 && acceptableAnswers.length <= 1}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      
+                      <Button 
+                        type="button" 
+                        onClick={addAcceptableAnswer} 
+                        variant="outline" 
+                        size="sm"
+                        className="mt-2"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Alternative Answer
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+                
                 {questionType === 'multiple-choice' && (
-                  <div className="mb-4">
+                  <motion.div 
+                    className="mb-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Label>Answer Options</Label>
                     {options.map((option, index) => (
                       <div key={index} className="flex items-center gap-2 mb-2">
@@ -530,11 +720,16 @@ export default function CreateQuizPage() {
                     ))}
                     {errors.options && <p className="text-red-500 text-sm mt-1">{errors.options}</p>}
                     {errors.correctAnswer && <p className="text-red-500 text-sm mt-1">{errors.correctAnswer}</p>}
-                  </div>
+                  </motion.div>
                 )}
                 
                 {questionType === 'true-false' && (
-                  <div className="mb-4">
+                  <motion.div 
+                    className="mb-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <Label>Correct Answer</Label>
                     <div className="flex gap-4 mt-2">
                       <div className="flex items-center gap-2">
@@ -563,7 +758,50 @@ export default function CreateQuizPage() {
                       </div>
                     </div>
                     {errors.correctAnswer && <p className="text-red-500 text-sm mt-1">{errors.correctAnswer}</p>}
-                  </div>
+                  </motion.div>
+                )}
+                
+                {questionType === 'saq' && (
+                  <motion.div 
+                    className="mb-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Label>Acceptable Answers</Label>
+                    {errors.acceptableAnswers && <p className="text-red-500 text-sm mt-1">{errors.acceptableAnswers}</p>}
+                    
+                    {acceptableAnswers.map((answer, index) => (
+                      <div key={index} className="flex items-center gap-2 mb-2">
+                        <Input
+                          value={answer}
+                          onChange={(e) => updateAcceptableAnswer(index, e.target.value)}
+                          placeholder={`Acceptable answer ${index + 1}`}
+                          className="flex-1"
+                        />
+                        <Button 
+                          type="button" 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => removeAcceptableAnswer(index)}
+                          disabled={acceptableAnswers.length <= 1}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    <Button 
+                      type="button" 
+                      onClick={addAcceptableAnswer} 
+                      variant="outline" 
+                      size="sm"
+                      className="mt-2"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Acceptable Answer
+                    </Button>
+                  </motion.div>
                 )}
                 
                 <div className="mb-4">

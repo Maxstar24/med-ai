@@ -1,10 +1,27 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
-import { IQuiz } from '@/types/models';
+import { getAuth } from 'firebase-admin/auth';
+import { DecodedIdToken } from 'firebase-admin/auth';
+
+// Helper function to verify Firebase token
+async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedIdToken | null> {
+  try {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    
+    // Verify the token
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return null;
+  }
+}
 
 // GET: Fetch a specific quiz by ID
 export async function GET(
@@ -15,9 +32,11 @@ export async function GET(
     // Connect to the database
     await connectToDatabase();
     
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -39,7 +58,7 @@ export async function GET(
     }
     
     // Find the quiz in the database
-    const quiz: IQuiz | null = await Quiz.findById(id);
+    const quiz = await Quiz.findById(id);
     
     if (!quiz) {
       return NextResponse.json(
@@ -49,7 +68,7 @@ export async function GET(
     }
     
     // Check if user has permission to view this quiz
-    if (!quiz.isPublic && quiz.createdBy.toString() !== session.user.id) {
+    if (!quiz.isPublic && quiz.createdBy.toString() !== decodedToken.uid) {
       return NextResponse.json(
         { error: 'You do not have permission to view this quiz' },
         { status: 403 }
@@ -75,9 +94,11 @@ export async function PATCH(
     // Connect to the database
     await connectToDatabase();
     
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -99,7 +120,7 @@ export async function PATCH(
     const updates = await request.json();
     
     // Find the quiz
-    const quiz: IQuiz | null = await Quiz.findById(id);
+    const quiz = await Quiz.findById(id);
     
     if (!quiz) {
       return NextResponse.json(
@@ -109,7 +130,7 @@ export async function PATCH(
     }
     
     // Check if user has permission to update this quiz
-    if (quiz.createdBy.toString() !== session.user.id) {
+    if (quiz.createdBy.toString() !== decodedToken.uid) {
       return NextResponse.json(
         { error: 'You do not have permission to update this quiz' },
         { status: 403 }
@@ -155,9 +176,11 @@ export async function DELETE(
     // Connect to the database
     await connectToDatabase();
     
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -178,7 +201,7 @@ export async function DELETE(
     // Find and delete the quiz only if it belongs to the current user
     const result = await Quiz.findOneAndDelete({
       _id: id,
-      createdBy: session.user.id
+      createdBy: decodedToken.uid
     });
     
     if (!result) {

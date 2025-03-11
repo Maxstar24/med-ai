@@ -1,174 +1,169 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/mongodb';
 import QuizResult from '@/models/QuizResult';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
-import { IQuizResult, IQuiz } from '@/types/models';
+import { getAuth } from 'firebase-admin/auth';
+import { DecodedIdToken } from 'firebase-admin/auth';
 
-const quizResultSchema = z.object({
-  quizId: z.string(),
-  score: z.number(),
-  totalQuestions: z.number(),
-  timeSpent: z.number(),
-  answers: z.array(z.object({
-    questionId: z.string(),
-    userAnswer: z.union([z.string(), z.number(), z.boolean()]),
-    isCorrect: z.boolean(),
-    timeSpent: z.number().optional(),
-  })),
-  completedAt: z.string().datetime(),
-});
+// Define interfaces for type safety
+interface IQuizResult {
+  _id: mongoose.Types.ObjectId;
+  quizId: mongoose.Types.ObjectId;
+  userId: string;
+  score: number;
+  totalQuestions: number;
+  timeSpent: number;
+  answers: Array<{
+    questionId: string;
+    userAnswer?: string | number | boolean;
+    shortAnswer?: string;
+    isCorrect: boolean;
+    timeSpent?: number;
+  }>;
+  completedAt: Date;
+  improvement: string | null;
+  streak: number;
+}
 
-// GET: Fetch quiz results for a user (with optional quiz filter)
-export async function GET(request: Request) {
+interface IQuiz {
+  _id: mongoose.Types.ObjectId;
+  title: string;
+  description: string;
+  questions: Array<{
+    _id: mongoose.Types.ObjectId | string;
+    text: string;
+    type: 'multiple-choice' | 'true-false' | 'spot' | 'saq';
+    options: any[];
+    correctAnswer: string | string[];
+    explanation: string;
+    imageUrl?: string;
+  }>;
+}
+
+// Helper function to verify Firebase token
+async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedIdToken | null> {
   try {
-    // Connect to the database
-    await connectToDatabase();
-    
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
     }
     
-    // Get URL parameters
-    const { searchParams } = new URL(request.url);
-    const quizId = searchParams.get('quizId');
+    const token = authHeader.split('Bearer ')[1];
     
-    // Build the query based on parameters
-    const query: any = { userId: session.user.id };
-    if (quizId) {
-      query.quizId = new mongoose.Types.ObjectId(quizId);
-    }
-    
-    // Fetch results from the database
-    const results = await QuizResult.find(query)
-      .sort({ completedAt: -1 }) // Sort by most recent first
-      .lean();
-    
-    // Calculate statistics
-    const stats = await calculateUserStats(session.user.id);
-    
-    return NextResponse.json({ results, stats });
+    // Verify the token
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken;
   } catch (error) {
-    console.error('Error fetching quiz results:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch quiz results' },
-      { status: 500 }
-    );
+    console.error('Error verifying token:', error);
+    return null;
   }
 }
 
-// POST: Submit a new quiz result
-export async function POST(request: Request) {
+// Define a more flexible schema for different question types
+const answerSchema = z.union([
+  // For multiple choice and true/false questions
+  z.object({
+    questionId: z.string(),
+    selectedOptionIds: z.array(z.string()).optional(),
+    userAnswer: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    isCorrect: z.boolean().optional(),
+    timeSpent: z.number().optional(),
+  }),
+  // For spot (image identification) questions
+  z.object({
+    questionId: z.string(),
+    shortAnswer: z.string().optional(),
+    userAnswer: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    isCorrect: z.boolean().optional(),
+    timeSpent: z.number().optional(),
+  }),
+  // For short answer questions
+  z.object({
+    questionId: z.string(),
+    shortAnswer: z.string().optional(),
+    userAnswer: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    isCorrect: z.boolean().optional(),
+    timeSpent: z.number().optional(),
+  })
+]);
+
+// GET: Fetch a specific quiz result by ID
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     // Connect to the database
     await connectToDatabase();
     
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Get the request body
-    const body = await request.json();
-    console.log('Request body:', body);
+    // Get the result ID from params
+    const resultId = params.id;
     
-    // Validate required fields
-    if (!body.quizId || !body.score || body.answers === undefined) {
+    if (!resultId || !mongoose.Types.ObjectId.isValid(resultId)) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Invalid result ID' },
         { status: 400 }
       );
     }
     
-    // Verify the quiz exists
-    const quiz = await Quiz.findById(body.quizId);
+    // Fetch the result from the database
+    const result = await QuizResult.findById(resultId).lean();
+    
+    if (!result) {
+      return NextResponse.json(
+        { error: 'Result not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Type assertion for TypeScript
+    const typedResult = result as unknown as IQuizResult;
+    
+    // Verify that the result belongs to the authenticated user
+    if (typedResult.userId !== decodedToken.uid) {
+      return NextResponse.json(
+        { error: 'Unauthorized to access this result' },
+        { status: 403 }
+      );
+    }
+    
+    // Fetch the quiz to get the questions
+    const quiz = await Quiz.findById(typedResult.quizId).lean();
+    
     if (!quiz) {
       return NextResponse.json(
         { error: 'Quiz not found' },
         { status: 404 }
       );
     }
-    console.log('Quiz found:', quiz);
     
-    // Calculate total questions
-    const totalQuestions = quiz.questions.length;
+    // Type assertion for TypeScript
+    const typedQuiz = quiz as unknown as IQuiz;
     
-    // Check if this user has previous results for this quiz
-    const previousResult = await QuizResult.findOne({ 
-      userId: session.user.id,
-      quizId: body.quizId 
-    }).sort({ completedAt: -1 });
-    console.log('Previous result:', previousResult);
+    // Calculate percentage score
+    const percentageScore = Math.round((typedResult.score / typedResult.totalQuestions) * 100);
     
-    // Calculate improvement if there's a previous result
-    let improvement = null;
-    let streak = 1;
-    
-    if (previousResult) {
-      const prevScore = previousResult.score / previousResult.totalQuestions;
-      const currentScore = body.score / totalQuestions;
-      const improvementPercentage = ((currentScore - prevScore) * 100).toFixed(0);
-      
-      if (Number(improvementPercentage) > 0) {
-        improvement = `+${improvementPercentage}%`;
-      } else if (Number(improvementPercentage) < 0) {
-        improvement = `${improvementPercentage}%`;
-      } else {
-        improvement = '0%';
-      }
-      
-      // Update streak based on previous streak
-      streak = previousResult.streak;
-      
-      // Calculate if this attempt was on a different day than the previous one
-      const prevDate = new Date(previousResult.completedAt).setHours(0, 0, 0, 0);
-      const currentDate = new Date().setHours(0, 0, 0, 0);
-      
-      if (prevDate < currentDate) {
-        // It's a new day, increment streak
-        streak += 1;
-      }
-    }
-    
-    // Create the quiz result
-    const quizResult = new QuizResult({
-      quizId: body.quizId,
-      userId: session.user.id,
-      score: body.score,
-      totalQuestions,
-      timeSpent: body.timeSpent || 0,
-      answers: body.answers,
-      completedAt: new Date(),
-      improvement,
-      streak
-    });
-    console.log('Quiz result to save:', quizResult);
-    
-    // Save the result to the database
-    await quizResult.save();
-    console.log('Quiz result saved successfully');
-    
-    // Prepare response with additional data
-    const resultWithQuizInfo = {
-      ...quizResult.toJSON(),
-      questions: quiz.questions  // Include the questions in the response
+    // Combine the result with the quiz questions
+    const resultWithQuestions = {
+      ...typedResult,
+      questions: typedQuiz.questions,
+      percentageScore
     };
     
-    return NextResponse.json({
-      message: 'Quiz result submitted successfully',
-      result: resultWithQuizInfo
-    }, { status: 201 });
-    
+    return NextResponse.json({ result: resultWithQuestions });
   } catch (error) {
-    console.error('Error submitting quiz result:', error);
+    console.error('Error fetching quiz result:', error);
     return NextResponse.json(
-      { error: 'Failed to submit quiz result' },
+      { error: 'Failed to fetch quiz result' },
       { status: 500 }
     );
   }

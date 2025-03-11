@@ -1,9 +1,27 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
+import { getAuth } from 'firebase-admin/auth';
+import { DecodedIdToken } from 'firebase-admin/auth';
+
+// Helper function to verify Firebase token
+async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedIdToken | null> {
+  try {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    
+    // Verify the token
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return null;
+  }
+}
 
 // GET: Fetch quizzes created by the current user
 export async function GET(request: Request) {
@@ -11,34 +29,43 @@ export async function GET(request: Request) {
     // Connect to the database
     await connectToDatabase();
     
-    // Get the session for authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Get URL parameters for filtering
+    // Get URL parameters
     const { searchParams } = new URL(request.url);
-    const topic = searchParams.get('topic');
-    const difficulty = searchParams.get('difficulty');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const skip = (page - 1) * limit;
     
-    // Build query based on filters
-    const query: any = {
-      createdBy: new mongoose.Types.ObjectId(session.user.id)
-    };
+    console.log('Fetching quizzes for user:', decodedToken.uid);
     
-    // Filter by topic if provided
-    if (topic && topic !== 'all') query.topic = topic;
-    
-    // Filter by difficulty if provided
-    if (difficulty && difficulty !== 'all') query.difficulty = difficulty;
-    
-    // Fetch quizzes from the database
-    const quizzes = await Quiz.find(query)
-      .sort({ createdAt: -1 }) // Sort by most recent first
+    // Fetch quizzes created by the current user using userFirebaseUid
+    const quizzes = await Quiz.find({ userFirebaseUid: decodedToken.uid })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
     
-    return NextResponse.json({ quizzes });
+    console.log('Found quizzes:', quizzes.length);
+    
+    // Count total quizzes for pagination
+    const total = await Quiz.countDocuments({ userFirebaseUid: decodedToken.uid });
+    
+    return NextResponse.json({
+      quizzes,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('Error fetching user quizzes:', error);
     return NextResponse.json(

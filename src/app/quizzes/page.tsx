@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ interface Quiz {
 }
 
 export default function QuizzesPage() {
-  const { data: session, status } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -36,21 +36,29 @@ export default function QuizzesPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState('all');
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      redirect('/login');
+    if (!authLoading && !user) {
+      router.push('/login?callbackUrl=/quizzes');
     }
-  }, [status]);
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     const fetchQuizzes = async () => {
-      if (status !== 'authenticated') return;
+      if (authLoading || !user) return;
 
       try {
         const params = new URLSearchParams();
         if (selectedTopic !== 'all') params.append('topic', selectedTopic);
         if (selectedDifficulty !== 'all') params.append('difficulty', selectedDifficulty);
 
-        const response = await fetch(`/api/quizzes?${params.toString()}`);
+        // Get Firebase ID token for authentication
+        const idToken = await user.getIdToken(true);
+        
+        const response = await fetch(`/api/quizzes?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
         const data = await response.json();
 
         if (response.ok) {
@@ -64,15 +72,15 @@ export default function QuizzesPage() {
     };
 
     fetchQuizzes();
-  }, [status, selectedTopic, selectedDifficulty]);
+  }, [user, authLoading, selectedTopic, selectedDifficulty]);
 
   // Check for specific quiz ID in URL params
   useEffect(() => {
     const quizId = searchParams.get('id');
-    if (quizId && status === 'authenticated') {
+    if (quizId && user) {
       router.push(`/quizzes/${quizId}`);
     }
-  }, [searchParams, status, router]);
+  }, [searchParams, user, router]);
 
   // Helper function to get the correct quiz ID
   const getQuizId = (quiz: Quiz) => quiz._id || quiz.id;
@@ -85,7 +93,7 @@ export default function QuizzesPage() {
     quiz.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (status === 'loading') {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />
