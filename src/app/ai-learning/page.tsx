@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { redirect, useRouter } from 'next/navigation';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import Markdown from '@/components/Markdown';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Brain,
   Send,
@@ -51,7 +51,7 @@ interface Message {
 }
 
 export default function AILearningPage() {
-  const { data: session, status } = useSession();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -67,7 +67,7 @@ export default function AILearningPage() {
         setLoadingCases(true);
         
         // Check if user is authenticated
-        if (status !== 'authenticated') {
+        if (!user) {
           setFeaturedCases([]);
           return;
         }
@@ -92,13 +92,13 @@ export default function AILearningPage() {
     if (activeTab === 'cases') {
       fetchFeaturedCases();
     }
-  }, [activeTab]);
+  }, [activeTab, user]);
 
-  if (status === 'loading') {
+  if (loading) {
     return <div>Loading...</div>;
   }
 
-  if (status === 'unauthenticated') {
+  if (!user) {
     redirect('/login');
   }
 

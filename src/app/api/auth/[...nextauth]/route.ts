@@ -92,14 +92,20 @@ export const authOptions: AuthOptions = {
         return callbackUrl || '/dashboard';
       }
       
-      // Handle relative URLs
+      // Handle relative URLs - allow access to all app routes
       if (url.startsWith('/')) {
         console.log("Relative URL detected, returning:", url);
         return url;
       }
       
-      // Default redirect to dashboard
-      console.log("Default case, redirecting to dashboard");
+      // If the URL is absolute but belongs to the same site, allow it
+      if (url.startsWith(baseUrl)) {
+        console.log("Absolute URL from same site detected, returning:", url);
+        return url;
+      }
+      
+      // Default redirect to dashboard only for external URLs
+      console.log("External URL detected, redirecting to dashboard");
       return '/dashboard';
     }
   },

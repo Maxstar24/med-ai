@@ -4,7 +4,6 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { NextAuthProvider } from '@/components/NextAuthProvider';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,12 +23,10 @@ export default function RootLayout({
         inter.className,
         "min-h-screen bg-black text-slate-50 antialiased"
       )}>
-        <NextAuthProvider>
-          <AuthProvider>
-            {children}
-            <Toaster />
-          </AuthProvider>
-        </NextAuthProvider>
+        <AuthProvider>
+          {children}
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );
