@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BookOpen, Search, X, Filter, ArrowRight, Loader2, BookText, PlusCircle, Sparkles, Bookmark, BookmarkCheck, History, Settings } from 'lucide-react';
+import { BookOpen, Search, X, Filter, ArrowRight, Loader2, BookText, PlusCircle, Sparkles, Bookmark, BookmarkCheck, History, Settings, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,6 +66,15 @@ const CasesNavBar = () => {
           
           <NavigationMenu>
             <NavigationMenuList>
+              <NavigationMenuItem>
+                <Link href="/" legacyBehavior passHref>
+                  <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                    <Home className="w-4 h-4 mr-2" />
+                    Home
+                  </NavigationMenuLink>
+                </Link>
+              </NavigationMenuItem>
+              
               <NavigationMenuItem>
                 <Link href="/cases/browse" legacyBehavior passHref>
                   <NavigationMenuLink className={navigationMenuTriggerStyle()}>

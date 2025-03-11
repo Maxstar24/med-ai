@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BookOpen, ArrowRight, Loader2, BookmarkX, BookText, PlusCircle, Sparkles, Bookmark, History } from 'lucide-react';
+import { BookOpen, ArrowRight, Loader2, BookmarkX, BookText, PlusCircle, Sparkles, Bookmark, History, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
@@ -42,6 +42,15 @@ const CasesNavBar = () => {
           
           <NavigationMenu>
             <NavigationMenuList>
+              <NavigationMenuItem>
+                <Link href="/" legacyBehavior passHref>
+                  <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                    <Home className="w-4 h-4 mr-2" />
+                    Home
+                  </NavigationMenuLink>
+                </Link>
+              </NavigationMenuItem>
+              
               <NavigationMenuItem>
                 <Link href="/cases/browse" legacyBehavior passHref>
                   <NavigationMenuLink className={navigationMenuTriggerStyle()}>
