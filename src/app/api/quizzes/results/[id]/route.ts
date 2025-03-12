@@ -91,7 +91,7 @@ const answerSchema = z.union([
 // GET: Fetch a specific quiz result by ID
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
     // Connect to the database
@@ -105,8 +105,9 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Get the result ID from params
-    const resultId = params.id;
+    // Get the result ID from params - await it first
+    const resolvedParams = await params;
+    const resultId = resolvedParams.id;
     
     if (!resultId || !mongoose.Types.ObjectId.isValid(resultId)) {
       return NextResponse.json(

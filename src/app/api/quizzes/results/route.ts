@@ -4,7 +4,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import QuizResult from '@/models/QuizResult';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
-import { getAuth } from 'firebase-admin/auth';
+import { verifyFirebaseToken } from '@/lib/firebase-admin';
 import { DecodedIdToken } from 'firebase-admin/auth';
 
 // Define types for question and option
@@ -48,24 +48,6 @@ const quizResultSchema = z.object({
   answers: z.array(answerSchema),
 });
 
-// Helper function to verify Firebase token
-async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedIdToken | null> {
-  try {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
-    
-    const token = authHeader.split('Bearer ')[1];
-    
-    // Verify the token
-    const decodedToken = await getAuth().verifyIdToken(token);
-    return decodedToken;
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
-  }
-}
-
 // GET: Fetch quiz results for a user (with optional quiz filter)
 export async function GET(request: Request) {
   try {
@@ -77,8 +59,11 @@ export async function GET(request: Request) {
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
+      console.error('Authentication failed: Invalid or expired token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('Fetching quiz results for user:', decodedToken.uid);
     
     // Get URL parameters
     const { searchParams } = new URL(request.url);
@@ -87,22 +72,83 @@ export async function GET(request: Request) {
     // Build the query based on parameters
     const query: Record<string, any> = { userId: decodedToken.uid };
     if (quizId) {
-      query.quizId = new mongoose.Types.ObjectId(quizId);
+      try {
+        query.quizId = new mongoose.Types.ObjectId(quizId);
+      } catch (error) {
+        console.error('Invalid quizId format:', quizId);
+        return NextResponse.json({ error: 'Invalid quiz ID format' }, { status: 400 });
+      }
     }
     
-    // Fetch results from the database
-    const results = await QuizResult.find(query)
-      .sort({ completedAt: -1 }) // Sort by most recent first
-      .lean();
+    console.log('Query:', JSON.stringify(query));
     
-    // Calculate statistics
-    const stats = await calculateUserStats(decodedToken.uid);
-    
-    return NextResponse.json({ results, stats });
-  } catch (error) {
+    try {
+      // Fetch results from the database
+      const results = await QuizResult.find(query)
+        .sort({ completedAt: -1 }) // Sort by most recent first
+        .lean();
+      
+      console.log(`Found ${results.length} results`);
+      
+      // Calculate statistics
+      const stats = await calculateUserStats(decodedToken.uid);
+      
+      return NextResponse.json({ success: true, results, stats });
+    } catch (dbError: any) {
+      console.error('Database query error:', dbError.message);
+      
+      // If there's an issue with the model schema, try a more direct approach
+      if (dbError.name === 'CastError' && dbError.path === 'userId') {
+        console.log('Attempting alternative query approach...');
+        
+        // Use the native MongoDB driver directly to bypass Mongoose schema validation
+        const connection = mongoose.connection;
+        if (!connection || !connection.db) {
+          console.error('MongoDB connection not established');
+          throw new Error('Database connection not established');
+        }
+        
+        const db = connection.db;
+        const resultsCollection = db.collection('quizresults');
+        
+        const rawResults = await resultsCollection.find({ userId: decodedToken.uid })
+          .sort({ completedAt: -1 })
+          .toArray();
+        
+        console.log(`Found ${rawResults.length} results using direct MongoDB query`);
+        
+        // Transform the results to match the expected format
+        const transformedResults = rawResults.map(result => ({
+          id: result._id.toString(),
+          quizId: result.quizId.toString(),
+          userId: result.userId,
+          score: result.score,
+          totalQuestions: result.totalQuestions,
+          timeSpent: result.timeSpent,
+          completedAt: result.completedAt,
+          improvement: result.improvement,
+          streak: result.streak
+        }));
+        
+        // Calculate statistics manually
+        const stats = {
+          totalQuizzesTaken: transformedResults.length,
+          averageScore: transformedResults.length > 0 
+            ? transformedResults.reduce((acc, r) => acc + (r.score / r.totalQuestions), 0) / transformedResults.length 
+            : 0,
+          totalTimeSpent: transformedResults.reduce((acc, r) => acc + (r.timeSpent || 0), 0),
+          currentStreak: transformedResults.length > 0 ? transformedResults[0].streak : 0
+        };
+        
+        return NextResponse.json({ success: true, results: transformedResults, stats });
+      }
+      
+      throw dbError; // Re-throw if it's not a userId cast error
+    }
+  } catch (error: any) {
     console.error('Error fetching quiz results:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch quiz results' },
+      { error: 'Failed to fetch quiz results', details: error.message },
       { status: 500 }
     );
   }
@@ -119,8 +165,11 @@ export async function POST(request: Request) {
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
+      console.error('Authentication failed: Invalid or expired token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('Submitting quiz result for user:', decodedToken.uid);
     
     // Get the request body
     const body = await request.json();
@@ -135,7 +184,15 @@ export async function POST(request: Request) {
     }
     
     // Verify the quiz exists
-    const quiz = await Quiz.findById(body.quizId);
+    let quizObjectId;
+    try {
+      quizObjectId = new mongoose.Types.ObjectId(body.quizId);
+    } catch (error) {
+      console.error('Invalid quizId format:', body.quizId);
+      return NextResponse.json({ error: 'Invalid quiz ID format' }, { status: 400 });
+    }
+    
+    const quiz = await Quiz.findById(quizObjectId);
     if (!quiz) {
       return NextResponse.json(
         { error: 'Quiz not found' },
@@ -254,39 +311,86 @@ export async function POST(request: Request) {
     }
     
     // Create the quiz result
-    const quizResult = new QuizResult({
-      quizId: body.quizId,
-      userId: decodedToken.uid,
-      score,
-      totalQuestions,
-      timeSpent: body.timeSpent || 0,
-      answers: processedAnswers,
-      completedAt: new Date(),
-      improvement,
-      streak
-    });
-    console.log('Quiz result to save:', quizResult);
-    
-    // Save the result to the database
-    await quizResult.save();
-    console.log('Quiz result saved successfully');
-    
-    // Prepare response with additional data
-    const resultWithQuizInfo = {
-      ...quizResult.toJSON(),
-      questions: quiz.questions  // Include the questions in the response
-    };
-    
-    return NextResponse.json({
-      message: 'Quiz result submitted successfully',
-      result: resultWithQuizInfo,
-      resultId: quizResult._id
-    }, { status: 201 });
-    
-  } catch (error) {
+    try {
+      const quizResult = new QuizResult({
+        quizId: quizObjectId,
+        userId: decodedToken.uid, // Using Firebase UID as string
+        score,
+        totalQuestions,
+        timeSpent: body.timeSpent || 0,
+        answers: processedAnswers,
+        completedAt: new Date(),
+        improvement,
+        streak
+      });
+      console.log('Quiz result to save:', quizResult);
+      
+      // Save the result to the database
+      await quizResult.save();
+      console.log('Quiz result saved successfully');
+      
+      // Prepare response with additional data
+      const resultWithQuizInfo = {
+        ...quizResult.toJSON(),
+        questions: quiz.questions  // Include the questions in the response
+      };
+      
+      return NextResponse.json({
+        message: 'Quiz result submitted successfully',
+        result: resultWithQuizInfo,
+        resultId: quizResult._id
+      }, { status: 201 });
+    } catch (saveError: any) {
+      console.error('Error saving quiz result:', saveError);
+      
+      // If there's an issue with the model schema, try a more direct approach
+      if (saveError.name === 'CastError' && saveError.path === 'userId') {
+        console.log('Attempting alternative save approach...');
+        
+        // Use the native MongoDB driver directly
+        const connection = mongoose.connection;
+        if (!connection || !connection.db) {
+          console.error('MongoDB connection not established');
+          throw new Error('Database connection not established');
+        }
+        
+        const db = connection.db;
+        const resultsCollection = db.collection('quizresults');
+        
+        const resultDoc = {
+          quizId: quizObjectId,
+          userId: decodedToken.uid,
+          score,
+          totalQuestions,
+          timeSpent: body.timeSpent || 0,
+          answers: processedAnswers,
+          completedAt: new Date(),
+          improvement,
+          streak,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        const insertResult = await resultsCollection.insertOne(resultDoc);
+        console.log('Quiz result saved successfully using direct MongoDB insert');
+        
+        return NextResponse.json({
+          message: 'Quiz result submitted successfully',
+          result: {
+            ...resultDoc,
+            id: insertResult.insertedId.toString(),
+            questions: quiz.questions
+          },
+          resultId: insertResult.insertedId.toString()
+        }, { status: 201 });
+      }
+      
+      throw saveError; // Re-throw if it's not a userId cast error
+    }
+  } catch (error: any) {
     console.error('Error submitting quiz result:', error);
     return NextResponse.json(
-      { error: 'Failed to submit quiz result' },
+      { error: 'Failed to submit quiz result', details: error.message },
       { status: 500 }
     );
   }
@@ -294,10 +398,106 @@ export async function POST(request: Request) {
 
 // Helper function to calculate user statistics
 async function calculateUserStats(userId: string) {
-  // Get all results for this user
-  const results = await QuizResult.find({ userId }).lean();
-  
-  if (results.length === 0) {
+  try {
+    console.log('Calculating stats for user:', userId);
+    
+    // Get all results for this user
+    const results = await QuizResult.find({ userId }).lean();
+    
+    console.log(`Found ${results.length} results for stats calculation`);
+    
+    if (results.length === 0) {
+      return {
+        totalQuizzesTaken: 0,
+        averageScore: 0,
+        totalTimeSpent: 0,
+        currentStreak: 0
+      };
+    }
+    
+    // Calculate total quizzes taken
+    const totalQuizzesTaken = results.length;
+    
+    // Calculate average score
+    const totalScore = results.reduce((acc, result) => {
+      return acc + (result.score / result.totalQuestions);
+    }, 0);
+    const averageScore = totalScore / results.length;
+    
+    // Calculate total time spent
+    const totalTimeSpent = results.reduce((acc, result) => acc + (result.timeSpent || 0), 0);
+    
+    // Get the current streak from the most recent result
+    const latestResult = results.sort((a, b) => 
+      new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    )[0];
+    
+    const currentStreak = latestResult ? latestResult.streak : 0;
+    
+    return {
+      totalQuizzesTaken,
+      averageScore,
+      totalTimeSpent,
+      currentStreak
+    };
+  } catch (error: any) {
+    console.error('Error calculating user stats:', error);
+    
+    // If there's an issue with the model schema, try a more direct approach
+    if (error.name === 'CastError' && error.path === 'userId') {
+      console.log('Attempting alternative stats calculation approach...');
+      
+      // Use the native MongoDB driver directly
+      const connection = mongoose.connection;
+      if (!connection || !connection.db) {
+        console.error('MongoDB connection not established');
+        return {
+          totalQuizzesTaken: 0,
+          averageScore: 0,
+          totalTimeSpent: 0,
+          currentStreak: 0
+        };
+      }
+      
+      const db = connection.db;
+      const resultsCollection = db.collection('quizresults');
+      
+      const rawResults = await resultsCollection.find({ userId }).toArray();
+      
+      if (rawResults.length === 0) {
+        return {
+          totalQuizzesTaken: 0,
+          averageScore: 0,
+          totalTimeSpent: 0,
+          currentStreak: 0
+        };
+      }
+      
+      // Calculate stats manually
+      const totalQuizzesTaken = rawResults.length;
+      
+      const totalScore = rawResults.reduce((acc, result) => {
+        return acc + (result.score / result.totalQuestions);
+      }, 0);
+      const averageScore = totalScore / rawResults.length;
+      
+      const totalTimeSpent = rawResults.reduce((acc, result) => acc + (result.timeSpent || 0), 0);
+      
+      const sortedResults = [...rawResults].sort((a, b) => 
+        new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+      );
+      
+      const currentStreak = sortedResults.length > 0 ? sortedResults[0].streak : 0;
+      
+      return {
+        totalQuizzesTaken,
+        averageScore,
+        totalTimeSpent,
+        currentStreak
+      };
+    }
+    
+    // Return default stats on error
     return {
       totalQuizzesTaken: 0,
       averageScore: 0,
@@ -305,30 +505,4 @@ async function calculateUserStats(userId: string) {
       currentStreak: 0
     };
   }
-  
-  // Calculate total quizzes taken
-  const totalQuizzesTaken = results.length;
-  
-  // Calculate average score
-  const totalScore = results.reduce((acc, result) => {
-    return acc + (result.score / result.totalQuestions);
-  }, 0);
-  const averageScore = totalScore / results.length;
-  
-  // Calculate total time spent
-  const totalTimeSpent = results.reduce((acc, result) => acc + (result.timeSpent || 0), 0);
-  
-  // Get the current streak from the most recent result
-  const latestResult = results.sort((a, b) => 
-    new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  )[0];
-  
-  const currentStreak = latestResult ? latestResult.streak : 0;
-  
-  return {
-    totalQuizzesTaken,
-    averageScore,
-    totalTimeSpent,
-    currentStreak
-  };
 }

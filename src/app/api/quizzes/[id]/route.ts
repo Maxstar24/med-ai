@@ -1,27 +1,10 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
+import User from '@/models/User';
 import mongoose from 'mongoose';
-import { getAuth } from 'firebase-admin/auth';
+import { verifyFirebaseToken } from '@/lib/firebase-admin';
 import { DecodedIdToken } from 'firebase-admin/auth';
-
-// Helper function to verify Firebase token
-async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedIdToken | null> {
-  try {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
-    
-    const token = authHeader.split('Bearer ')[1];
-    
-    // Verify the token
-    const decodedToken = await getAuth().verifyIdToken(token);
-    return decodedToken;
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
-  }
-}
 
 // GET: Fetch a specific quiz by ID
 export async function GET(
@@ -67,8 +50,26 @@ export async function GET(
       );
     }
     
+    // Find the user by Firebase UID
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    if (!user) {
+      console.error('User not found in database:', decodedToken.uid);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    
     // Check if user has permission to view this quiz
-    if (!quiz.isPublic && quiz.createdBy.toString() !== decodedToken.uid) {
+    // Quiz is accessible if:
+    // 1. It's public, or
+    // 2. The user created it (check both MongoDB ID and Firebase UID)
+    if (!quiz.isPublic && 
+        quiz.createdBy.toString() !== user._id.toString() && 
+        quiz.userFirebaseUid !== decodedToken.uid) {
+      console.log('Access denied. Quiz is not public and user is not the creator.');
+      console.log('Quiz createdBy:', quiz.createdBy.toString());
+      console.log('User _id:', user._id.toString());
+      console.log('Quiz userFirebaseUid:', quiz.userFirebaseUid);
+      console.log('User firebaseUid:', decodedToken.uid);
+      
       return NextResponse.json(
         { error: 'You do not have permission to view this quiz' },
         { status: 403 }
@@ -106,20 +107,16 @@ export async function PATCH(
     }
     
     // Get the quiz ID from the URL parameters
-    const resolvedParams = await params;
-    const id = resolvedParams.id;
+    const id = params.id;
     
-    if (!id || id === 'undefined') {
+    if (!id) {
       return NextResponse.json(
         { error: 'Invalid quiz ID' },
         { status: 400 }
       );
     }
     
-    // Get the request body
-    const updates = await request.json();
-    
-    // Find the quiz
+    // Find the quiz in the database
     const quiz = await Quiz.findById(id);
     
     if (!quiz) {
@@ -129,35 +126,36 @@ export async function PATCH(
       );
     }
     
+    // Find the user by Firebase UID
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    if (!user) {
+      console.error('User not found in database:', decodedToken.uid);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    
     // Check if user has permission to update this quiz
-    if (quiz.createdBy.toString() !== decodedToken.uid) {
+    if (quiz.createdBy.toString() !== user._id.toString() && 
+        quiz.userFirebaseUid !== decodedToken.uid) {
       return NextResponse.json(
         { error: 'You do not have permission to update this quiz' },
         { status: 403 }
       );
     }
     
-    console.log('Request body:', updates);
-    console.log('Quiz before update:', quiz);
+    // Get the updated quiz data from the request body
+    const data = await request.json();
     
-    // Apply updates
-    Object.keys(updates).forEach((key) => {
-      // Prevent changing createdBy field
-      if (key !== 'createdBy' && key !== '_id' && key !== 'id') {
-        (quiz as any)[key] = updates[key];
-      }
-    });
+    // Update the quiz in the database
+    const updatedQuiz = await Quiz.findByIdAndUpdate(
+      id,
+      { 
+        ...data,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
     
-    // Update the updatedAt timestamp
-    quiz.updatedAt = new Date();
-    
-    // Save the updated quiz
-    await quiz.save();
-    
-    return NextResponse.json({
-      message: 'Quiz updated successfully',
-      quiz
-    });
+    return NextResponse.json({ quiz: updatedQuiz });
   } catch (error) {
     console.error('Error updating quiz:', error);
     return NextResponse.json(
@@ -188,32 +186,45 @@ export async function DELETE(
     }
     
     // Get the quiz ID from the URL parameters
-    const resolvedParams = await params;
-    const id = resolvedParams.id;
+    const id = params.id;
     
-    if (!id || id === 'undefined') {
+    if (!id) {
       return NextResponse.json(
         { error: 'Invalid quiz ID' },
         { status: 400 }
       );
     }
     
-    // Find and delete the quiz only if it belongs to the current user
-    const result = await Quiz.findOneAndDelete({
-      _id: id,
-      createdBy: decodedToken.uid
-    });
+    // Find the quiz in the database
+    const quiz = await Quiz.findById(id);
     
-    if (!result) {
+    if (!quiz) {
       return NextResponse.json(
-        { error: 'Quiz not found or you do not have permission to delete it' },
+        { error: 'Quiz not found' },
         { status: 404 }
       );
     }
     
-    return NextResponse.json({
-      message: 'Quiz deleted successfully'
-    });
+    // Find the user by Firebase UID
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    if (!user) {
+      console.error('User not found in database:', decodedToken.uid);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    
+    // Check if user has permission to delete this quiz
+    if (quiz.createdBy.toString() !== user._id.toString() && 
+        quiz.userFirebaseUid !== decodedToken.uid) {
+      return NextResponse.json(
+        { error: 'You do not have permission to delete this quiz' },
+        { status: 403 }
+      );
+    }
+    
+    // Delete the quiz from the database
+    await Quiz.findByIdAndDelete(id);
+    
+    return NextResponse.json({ message: 'Quiz deleted successfully' });
   } catch (error) {
     console.error('Error deleting quiz:', error);
     return NextResponse.json(

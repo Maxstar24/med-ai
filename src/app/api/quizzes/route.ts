@@ -2,29 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
-import { getAuth } from 'firebase-admin/auth';
 import User from '@/models/User';
+import { verifyFirebaseToken } from '@/lib/firebase-admin';
 import { DecodedIdToken } from 'firebase-admin/auth';
-
-// Helper function to verify Firebase token
-async function verifyFirebaseToken(request: NextRequest): Promise<DecodedIdToken | null> {
-  try {
-    // Get the Firebase token from the Authorization header
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
-    
-    const token = authHeader.split('Bearer ')[1];
-    
-    // Verify the token
-    const decodedToken = await getAuth().verifyIdToken(token);
-    return decodedToken;
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
-  }
-}
 
 // GET: Fetch all quizzes or filter by topic/difficulty
 export async function GET(request: NextRequest) {
@@ -33,10 +13,15 @@ export async function GET(request: NextRequest) {
     await connectToDatabase();
     
     // Verify Firebase token
-    const decodedToken = await verifyFirebaseToken(request);
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
     if (!decodedToken) {
+      console.error('Authentication failed: Invalid or expired token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('Fetching quizzes for user:', decodedToken.uid);
     
     // Get URL parameters for filtering
     const { searchParams } = new URL(request.url);
@@ -46,6 +31,7 @@ export async function GET(request: NextRequest) {
     // Find the user by Firebase UID
     const user = await User.findOne({ firebaseUid: decodedToken.uid });
     if (!user) {
+      console.error('User not found in database:', decodedToken.uid);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
@@ -70,11 +56,13 @@ export async function GET(request: NextRequest) {
       .sort({ createdAt: -1 }) // Sort by most recent first
       .lean();
     
+    console.log(`Found ${quizzes.length} quizzes`);
+    
     return NextResponse.json({ quizzes });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching quizzes:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch quizzes' },
+      { error: 'Failed to fetch quizzes', details: error.message },
       { status: 500 }
     );
   }
@@ -86,19 +74,22 @@ export async function POST(request: NextRequest) {
     // Connect to the database
     await connectToDatabase();
     
+    // Start timing the operation
+    const startTime = Date.now();
+    
     // Verify Firebase token
-    const decodedToken = await verifyFirebaseToken(request);
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
     if (!decodedToken) {
+      console.error('Authentication failed: Invalid or expired token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Find the user by Firebase UID
-    const user = await User.findOne({ firebaseUid: decodedToken.uid });
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    console.log('Creating quiz for user:', decodedToken.uid);
+    console.log('Token verification time:', Date.now() - startTime, 'ms');
     
-    // Get the request body
+    // Get the request body early to avoid waiting
     const body = await request.json();
     
     // Validate required fields
@@ -109,10 +100,37 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Find the user by Firebase UID
+    const userStartTime = Date.now();
+    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    console.log('User lookup time:', Date.now() - userStartTime, 'ms');
+    
+    let userId;
+    
+    if (!user) {
+      console.log('User not found in database, creating new user');
+      
+      // Create the user
+      const createUserStartTime = Date.now();
+      const newUser = new User({
+        firebaseUid: decodedToken.uid,
+        email: decodedToken.email,
+        name: decodedToken.name || decodedToken.email?.split('@')[0] || 'User',
+        role: 'user',
+      });
+      
+      await newUser.save();
+      userId = newUser._id;
+      console.log('User creation time:', Date.now() - createUserStartTime, 'ms');
+    } else {
+      userId = user._id;
+    }
+    
     // Create the quiz
+    const quizStartTime = Date.now();
     const quiz = new Quiz({
       ...body,
-      createdBy: user._id,
+      createdBy: userId,
       userFirebaseUid: decodedToken.uid,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -120,15 +138,18 @@ export async function POST(request: NextRequest) {
     
     // Save the quiz to the database
     await quiz.save();
+    console.log('Quiz creation time:', Date.now() - quizStartTime, 'ms');
+    console.log('Quiz created successfully:', quiz._id);
+    console.log('Total operation time:', Date.now() - startTime, 'ms');
     
     return NextResponse.json(
       { message: 'Quiz created successfully', quiz },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating quiz:', error);
     return NextResponse.json(
-      { error: 'Failed to create quiz' },
+      { error: 'Failed to create quiz', details: error.message },
       { status: 500 }
     );
   }
@@ -141,14 +162,20 @@ export async function DELETE(request: NextRequest) {
     await connectToDatabase();
     
     // Verify Firebase token
-    const decodedToken = await verifyFirebaseToken(request);
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
     if (!decodedToken) {
+      console.error('Authentication failed: Invalid or expired token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('Deleting quizzes for user:', decodedToken.uid);
     
     // Find the user by Firebase UID
     const user = await User.findOne({ firebaseUid: decodedToken.uid });
     if (!user) {
+      console.error('User not found in database:', decodedToken.uid);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
@@ -178,13 +205,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
+    console.log(`Successfully deleted ${result.deletedCount} quizzes`);
+    
     return NextResponse.json({
       message: `Successfully deleted ${result.deletedCount} quizzes`
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting quizzes:', error);
     return NextResponse.json(
-      { error: 'Failed to delete quizzes' },
+      { error: 'Failed to delete quizzes', details: error.message },
       { status: 500 }
     );
   }

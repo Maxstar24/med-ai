@@ -46,6 +46,7 @@ export default function ManageQuizzesPage() {
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState('all');
   const [activeTab, setActiveTab] = useState('my-quizzes');
+  const [availableTopics, setAvailableTopics] = useState<string[]>([]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -93,11 +94,36 @@ export default function ManageQuizzesPage() {
     }
   }, [activeTab, selectedTopic, selectedDifficulty, user, authLoading]);
 
+  // Fetch topics from the API
+  const fetchTopics = async () => {
+    try {
+      const idToken = await user?.getIdToken(true);
+      
+      const response = await fetch('/api/topics', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setAvailableTopics(data.topics);
+      } else {
+        console.error('Failed to fetch topics:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching topics:', error);
+    }
+  };
+
+  // Fetch quizzes and topics when component mounts
   useEffect(() => {
     if (!authLoading && user) {
       fetchQuizzes();
+      fetchTopics();
     }
-  }, [user, authLoading, fetchQuizzes]);
+  }, [user, authLoading]);
 
   // Filter quizzes based on search term
   const filteredQuizzes = quizzes.filter(quiz => 
@@ -277,9 +303,9 @@ export default function ManageQuizzesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Topics</SelectItem>
-                      <SelectItem value="Cardiology">Cardiology</SelectItem>
-                      <SelectItem value="Pharmacology">Pharmacology</SelectItem>
-                      <SelectItem value="Neurology">Neurology</SelectItem>
+                      {availableTopics.map((topic) => (
+                        <SelectItem key={topic} value={topic}>{topic}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -416,9 +442,9 @@ export default function ManageQuizzesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Topics</SelectItem>
-                      <SelectItem value="Cardiology">Cardiology</SelectItem>
-                      <SelectItem value="Pharmacology">Pharmacology</SelectItem>
-                      <SelectItem value="Neurology">Neurology</SelectItem>
+                      {availableTopics.map((topic) => (
+                        <SelectItem key={topic} value={topic}>{topic}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainNav } from '@/components/ui/navigation-menu';
@@ -12,7 +12,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion } from 'framer-motion';
-import { Plus, Trash, ArrowLeft, ArrowRight, Save, Download, Eye } from 'lucide-react';
+import { Plus, Trash, ArrowLeft, ArrowRight, Save, Download, Eye, PlusCircle, Upload, Sparkles, Edit, Check } from 'lucide-react';
 
 interface Question {
   id: string;
@@ -25,8 +25,135 @@ interface Question {
   topic: string;
   tags: string[];
   imageUrl?: string;
-  spotCoordinates?: { x: number; y: number; radius: number; label: string }[];
 }
+
+// Question card component
+const QuestionCard = ({ 
+  question, 
+  index, 
+  onEdit, 
+  onDelete 
+}: { 
+  question: Question; 
+  index: number; 
+  onEdit: () => void; 
+  onDelete: () => void; 
+}) => {
+  // Get question type display name
+  const getQuestionTypeDisplay = (type: string) => {
+    switch (type) {
+      case 'multiple-choice': return 'Multiple Choice';
+      case 'true-false': return 'True/False';
+      case 'saq': return 'Short Answer';
+      case 'spot': return 'Spot Question';
+      default: return type;
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.05 }}
+      className="border rounded-md p-4 mb-3 bg-card"
+    >
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex items-center gap-2">
+          <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium">
+            {index + 1}
+          </span>
+          <span className="text-sm font-medium">{getQuestionTypeDisplay(question.type)}</span>
+          {question.tags.length > 0 && (
+            <div className="flex gap-1">
+              {question.tags.slice(0, 2).map((tag, i) => (
+                <span key={i} className="bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded text-xs">
+                  {tag}
+                </span>
+              ))}
+              {question.tags.length > 2 && (
+                <span className="bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded text-xs">
+                  +{question.tags.length - 2}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={onEdit} className="h-8 w-8 p-0">
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDelete} className="h-8 w-8 p-0 text-destructive">
+            <Trash className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <p className="text-sm mb-2 line-clamp-2">{question.question}</p>
+      
+      {question.type === 'multiple-choice' && (
+        <div className="text-xs text-muted-foreground">
+          {Array.isArray(question.options) && question.options.map((option, i) => (
+            <div key={i} className="flex items-start gap-1 mb-1">
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center mt-0.5 ${
+                question.correctAnswer === option ? 'bg-green-500 text-white' : 'border border-muted'
+              }`}>
+                {question.correctAnswer === option && <Check className="h-3 w-3" />}
+              </div>
+              <span className={question.correctAnswer === option ? 'font-medium text-foreground' : ''}>
+                {option}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {question.type === 'true-false' && (
+        <div className="text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded ${
+              question.correctAnswer === 'true' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : ''
+            }`}>
+              True
+            </span>
+            <span className={`px-2 py-0.5 rounded ${
+              question.correctAnswer === 'false' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : ''
+            }`}>
+              False
+            </span>
+          </div>
+        </div>
+      )}
+      
+      {question.type === 'saq' && (
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium">Answers: </span>
+          {Array.isArray(question.correctAnswer) ? (
+            <div>
+              <span className="font-medium text-foreground">{question.correctAnswer[0]}</span>
+              {question.correctAnswer.length > 1 && (
+                <div className="mt-1">
+                  <span className="text-xs text-muted-foreground">Alternative answers: </span>
+                  <span className="text-xs">
+                    {question.correctAnswer.slice(1, 4).join(', ')}
+                    {question.correctAnswer.length > 4 && ` (+${question.correctAnswer.length - 4} more)`}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            String(question.correctAnswer)
+          )}
+        </div>
+      )}
+      
+      {question.type === 'spot' && question.imageUrl && (
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium">Image included</span>
+          {/* Could show a thumbnail here */}
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
 export default function CreateQuizPage() {
   const router = useRouter();
@@ -40,6 +167,8 @@ export default function CreateQuizPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [customTopic, setCustomTopic] = useState('');
+  const [showCustomTopicInput, setShowCustomTopicInput] = useState(false);
   
   // Questions data
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -54,12 +183,24 @@ export default function CreateQuizPage() {
   const [questionTags, setQuestionTags] = useState<string[]>([]);
   const [questionTagInput, setQuestionTagInput] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [spotCoordinates, setSpotCoordinates] = useState<{ x: number; y: number; radius: number; label: string }[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [acceptableAnswers, setAcceptableAnswers] = useState<string[]>(['']);
   
   // UI states
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Add a state to track if user has been verified
+  const [userVerified, setUserVerified] = useState(false);
+
+  // Add a state to track loading status
+  const [loadingStatus, setLoadingStatus] = useState('');
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
+  // Add a state to track AI generation
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiGenerationError, setAiGenerationError] = useState('');
 
   // Redirect if not authenticated
   React.useEffect(() => {
@@ -67,6 +208,35 @@ export default function CreateQuizPage() {
       router.push('/login?callbackUrl=/quizzes/create');
     }
   }, [user, authLoading, router]);
+
+  // Check if user exists when component mounts
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      checkUserExists();
+    }
+  }, [user, authLoading]);
+
+  // Function to check if user exists
+  const checkUserExists = async () => {
+    try {
+      const idToken = await user?.getIdToken(true);
+      
+      const userCheckResponse = await fetch('/api/users/check', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      const userCheckData = await userCheckResponse.json();
+      
+      if (userCheckData.exists) {
+        setUserVerified(true);
+        console.log('User verified in database');
+      }
+    } catch (error) {
+      console.error('Error checking user:', error);
+    }
+  };
 
   // Add a new question
   const addQuestion = () => {
@@ -193,7 +363,6 @@ export default function CreateQuizPage() {
     setQuestionTags([]);
     setQuestionTagInput('');
     setImageUrl('');
-    setSpotCoordinates([]);
     setAcceptableAnswers(['']);
     setErrors({});
   };
@@ -261,32 +430,63 @@ export default function CreateQuizPage() {
 
   // Remove an acceptable answer for SAQ
   const removeAcceptableAnswer = (index: number) => {
-    if (acceptableAnswers.length <= 1) return;
+    // Don't allow removing the primary answer (index 0)
+    if (index === 0) return;
+    
     const newAnswers = [...acceptableAnswers];
     newAnswers.splice(index, 1);
     setAcceptableAnswers(newAnswers);
   };
 
-  // Add a spot coordinate for spot questions
-  const addSpotCoordinate = () => {
-    setSpotCoordinates([
-      ...spotCoordinates,
-      { x: 50, y: 50, radius: 10, label: `Spot ${spotCoordinates.length + 1}` }
-    ]);
-  };
-
-  // Update a spot coordinate for spot questions
-  const updateSpotCoordinate = (index: number, field: string, value: any) => {
-    const newCoordinates = [...spotCoordinates];
-    newCoordinates[index] = { ...newCoordinates[index], [field]: value };
-    setSpotCoordinates(newCoordinates);
-  };
-
-  // Remove a spot coordinate for spot questions
-  const removeSpotCoordinate = (index: number) => {
-    const newCoordinates = [...spotCoordinates];
-    newCoordinates.splice(index, 1);
-    setSpotCoordinates(newCoordinates);
+  // Handle file upload for spot questions
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      setErrors({...errors, imageUrl: 'Please upload an image file'});
+      return;
+    }
+    
+    // Check file size (limit to 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors({...errors, imageUrl: 'Image size should be less than 5MB'});
+      return;
+    }
+    
+    try {
+      setIsUploading(true);
+      
+      // Create a FormData object to send the file
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Get Firebase ID token for authentication
+      const idToken = await user?.getIdToken(true);
+      
+      // Upload the file to your server
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload image');
+      }
+      
+      const data = await response.json();
+      setImageUrl(data.url);
+      setErrors({...errors, imageUrl: ''});
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setErrors({...errors, imageUrl: 'Failed to upload image. Please try again.'});
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Validate quiz data before submission
@@ -327,8 +527,9 @@ export default function CreateQuizPage() {
     }
     
     if (questionType === 'saq') {
-      const filledAnswers = acceptableAnswers.filter(a => a.trim()).length;
-      if (filledAnswers === 0) newErrors.acceptableAnswers = 'At least one acceptable answer is required';
+      if (!acceptableAnswers[0] || !acceptableAnswers[0].trim()) {
+        newErrors.acceptableAnswers = 'Primary answer is required';
+      }
     }
     
     if (!explanation.trim()) newErrors.explanation = 'Explanation is required';
@@ -348,10 +549,66 @@ export default function CreateQuizPage() {
     
     try {
       setLoading(true);
+      setLoadingStatus('Preparing quiz data...');
+      setLoadingProgress(10);
       
       // Get Firebase ID token for authentication
       const idToken = await user?.getIdToken(true);
+      setLoadingProgress(20);
       
+      // Only check/create user if not already verified
+      if (!userVerified) {
+        setLoadingStatus('Verifying user account...');
+        console.log('Checking if user exists in the database...');
+        const userCheckResponse = await fetch('/api/users/check', {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
+        setLoadingProgress(40);
+        const userCheckData = await userCheckResponse.json();
+        
+        // If user doesn't exist, create them
+        if (!userCheckData.exists) {
+          setLoadingStatus('Creating user account...');
+          console.log('User not found in database, creating user...');
+          const createUserResponse = await fetch('/api/users/create-if-not-exists', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              name: user?.displayName || user?.email?.split('@')[0] || 'User'
+            })
+          });
+          
+          setLoadingProgress(60);
+          const createUserData = await createUserResponse.json();
+          
+          if (!createUserData.success) {
+            console.error('Failed to create user:', createUserData.error);
+            setErrors({ submit: 'Failed to create user profile. Please try again.' });
+            setLoading(false);
+            setLoadingStatus('');
+            setLoadingProgress(0);
+            return;
+          }
+          
+          console.log('User created successfully:', createUserData.user);
+          setUserVerified(true);
+        } else {
+          setUserVerified(true);
+        }
+      } else {
+        console.log('User already verified, skipping check');
+        setLoadingProgress(50);
+      }
+      
+      // Now create the quiz
+      setLoadingStatus('Creating quiz...');
+      console.log('Creating quiz...');
       const response = await fetch('/api/quizzes', {
         method: 'POST',
         headers: {
@@ -369,21 +626,30 @@ export default function CreateQuizPage() {
         })
       });
       
+      setLoadingProgress(80);
       const data = await response.json();
       
       if (response.ok) {
+        setLoadingStatus('Quiz created successfully! Redirecting...');
+        setLoadingProgress(100);
         // Clear any saved draft
         localStorage.removeItem('quizDraft');
         
         // Redirect to the quiz page
-        router.push(`/quizzes/${data.quiz.id}`);
+        setTimeout(() => {
+          router.push(`/quizzes/${data.quiz.id}`);
+        }, 500); // Small delay to show the success message
       } else {
         console.error('Failed to create quiz:', data.error);
         setErrors({ submit: data.error || 'Failed to create quiz' });
+        setLoadingStatus('');
+        setLoadingProgress(0);
       }
     } catch (error) {
       console.error('Error creating quiz:', error);
       setErrors({ submit: 'An unexpected error occurred' });
+      setLoadingStatus('');
+      setLoadingProgress(0);
     } finally {
       setLoading(false);
     }
@@ -447,6 +713,157 @@ export default function CreateQuizPage() {
     const newOptions = [...options];
     newOptions[index] = value;
     setOptions(newOptions);
+  };
+
+  // Handle custom topic selection
+  const handleTopicChange = (value: string) => {
+    if (value === 'custom') {
+      setShowCustomTopicInput(true);
+      // Don't set the topic yet, wait for custom input
+    } else {
+      setTopic(value);
+      setShowCustomTopicInput(false);
+    }
+  };
+
+  // Add custom topic
+  const addCustomTopic = () => {
+    if (customTopic.trim()) {
+      setTopic(customTopic.trim());
+      setShowCustomTopicInput(false);
+    }
+  };
+
+  // Generate questions using AI
+  const generateQuestionsWithAI = async () => {
+    if (!topic) {
+      setErrors({ ...errors, topic: 'Please select a topic first' });
+      return;
+    }
+
+    if (!difficulty) {
+      setErrors({ ...errors, difficulty: 'Please select a difficulty level first' });
+      return;
+    }
+
+    try {
+      setIsGeneratingAI(true);
+      setAiGenerationError('');
+
+      // Get Firebase ID token for authentication
+      const idToken = await user?.getIdToken(true);
+
+      // Call the AI generation API
+      const response = await fetch('/api/ai/generate-questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          topic,
+          questionType,
+          difficulty,
+          count: 3, // Generate 3 questions at a time
+          description // Include the quiz description for context
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('AI generation error:', data);
+        let errorMessage = data.error || 'Failed to generate questions';
+        
+        // Add more detailed error information if available
+        if (data.details) {
+          if (typeof data.details === 'string') {
+            errorMessage += `: ${data.details}`;
+          } else if (data.details.message) {
+            errorMessage += `: ${data.details.message}`;
+          }
+        }
+        
+        // Check if it's an API key configuration issue
+        if (errorMessage.includes('AI service is not properly configured')) {
+          errorMessage = 'The Google Gemini 1.5 Pro API key is not configured. Please follow these steps:\n\n' +
+            '1. Get an API key from Google AI Studio: https://aistudio.google.com/app/apikey\n' +
+            '2. Make sure your API key has access to the Gemini 1.5 Pro model\n' +
+            '3. Add it to your .env.local file as GOOGLE_AI_API_KEY=your_key_here\n' +
+            '4. Restart the development server';
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Add the generated questions to the quiz
+      const newQuestions = data.questions.map((q: any) => {
+        const questionId = Math.random().toString(36).substr(2, 9);
+        
+        // Format the question based on its type
+        if (q.type === 'multiple-choice') {
+          return {
+            id: questionId,
+            type: 'multiple-choice',
+            question: q.question,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            difficulty: q.difficulty || difficulty,
+            topic: q.topic || topic,
+            tags: q.tags || []
+          };
+        } else if (q.type === 'true-false') {
+          return {
+            id: questionId,
+            type: 'true-false',
+            question: q.question,
+            options: ['True', 'False'],
+            correctAnswer: q.correctAnswer === true ? 'true' : 'false',
+            explanation: q.explanation,
+            difficulty: q.difficulty || difficulty,
+            topic: q.topic || topic,
+            tags: q.tags || []
+          };
+        } else if (q.type === 'saq') {
+          return {
+            id: questionId,
+            type: 'saq',
+            question: q.question,
+            options: [],
+            correctAnswer: Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer],
+            explanation: q.explanation,
+            difficulty: q.difficulty || difficulty,
+            topic: q.topic || topic,
+            tags: q.tags || []
+          };
+        }
+        
+        // Default fallback
+        return {
+          id: questionId,
+          type: questionType,
+          question: q.question,
+          options: q.options || [],
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation,
+          difficulty: q.difficulty || difficulty,
+          topic: q.topic || topic,
+          tags: q.tags || []
+        };
+      });
+
+      // Add the new questions to the existing questions
+      setQuestions([...questions, ...newQuestions]);
+      
+      // Show a success message
+      alert(`Successfully generated ${newQuestions.length} questions!`);
+    } catch (error) {
+      console.error('Error generating questions:', error);
+      setAiGenerationError(error instanceof Error ? error.message : 'Failed to generate questions');
+    } finally {
+      setIsGeneratingAI(false);
+    }
   };
 
   if (authLoading) {
@@ -528,18 +945,50 @@ export default function CreateQuizPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="topic">Topic</Label>
-                      <Select value={topic} onValueChange={setTopic}>
-                        <SelectTrigger id="topic" className={errors.topic ? "border-red-500" : ""}>
-                          <SelectValue placeholder="Select topic" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Cardiology">Cardiology</SelectItem>
-                          <SelectItem value="Pharmacology">Pharmacology</SelectItem>
-                          <SelectItem value="Neurology">Neurology</SelectItem>
-                          <SelectItem value="Anatomy">Anatomy</SelectItem>
-                          <SelectItem value="Pathology">Pathology</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {!showCustomTopicInput ? (
+                        <Select value={topic} onValueChange={handleTopicChange}>
+                          <SelectTrigger id="topic" className={errors.topic ? "border-red-500" : ""}>
+                            <SelectValue placeholder="Select topic" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Cardiology">Cardiology</SelectItem>
+                            <SelectItem value="Pharmacology">Pharmacology</SelectItem>
+                            <SelectItem value="Neurology">Neurology</SelectItem>
+                            <SelectItem value="Anatomy">Anatomy</SelectItem>
+                            <SelectItem value="Pathology">Pathology</SelectItem>
+                            <SelectItem value="custom">
+                              <div className="flex items-center">
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Add Custom Topic
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Input
+                            id="customTopic"
+                            value={customTopic}
+                            onChange={(e) => setCustomTopic(e.target.value)}
+                            placeholder="Enter custom topic"
+                            className={errors.topic ? "border-red-500" : ""}
+                            onKeyPress={(e) => e.key === 'Enter' && addCustomTopic()}
+                          />
+                          <Button type="button" onClick={addCustomTopic} variant="outline">
+                            Add
+                          </Button>
+                          <Button 
+                            type="button" 
+                            onClick={() => {
+                              setShowCustomTopicInput(false);
+                              setCustomTopic('');
+                            }} 
+                            variant="ghost"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
                       {errors.topic && <p className="text-red-500 text-sm mt-1">{errors.topic}</p>}
                     </div>
                     
@@ -559,15 +1008,50 @@ export default function CreateQuizPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="isPublic"
-                      checked={isPublic}
-                      onChange={(e) => setIsPublic(e.target.checked)}
-                      className="rounded border-gray-300 text-primary"
-                    />
-                    <Label htmlFor="isPublic">Make this quiz public</Label>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="quizTags">Tags</Label>
+                      <div className="flex gap-2">
+                        <Input 
+                          id="quizTags" 
+                          value={tagInput} 
+                          onChange={(e) => setTagInput(e.target.value)}
+                          placeholder="Add tags separated by comma" 
+                          onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                        />
+                        <Button type="button" onClick={addTag} variant="outline">
+                          Add
+                        </Button>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {tags.map((tag, index) => (
+                          <span 
+                            key={index} 
+                            className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm flex items-center gap-1"
+                          >
+                            {tag}
+                            <button 
+                              onClick={() => removeTag(tag)}
+                              className="text-secondary-foreground hover:text-primary focus:outline-none"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="isPublic"
+                        checked={isPublic}
+                        onChange={(e) => setIsPublic(e.target.checked)}
+                        className="rounded border-gray-300 text-primary"
+                      />
+                      <Label htmlFor="isPublic">Make this quiz public</Label>
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -603,6 +1087,43 @@ export default function CreateQuizPage() {
                   </Select>
                 </div>
                 
+                {/* AI Question Generation Button */}
+                <div className="mb-6">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full flex items-center justify-center gap-2 border-dashed border-primary/50 hover:border-primary"
+                    onClick={generateQuestionsWithAI}
+                    disabled={isGeneratingAI || !topic || !difficulty}
+                  >
+                    {isGeneratingAI ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                        Generating Questions...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        Generate {questionType === 'multiple-choice' ? 'Multiple Choice' : 
+                                  questionType === 'true-false' ? 'True/False' : 
+                                  questionType === 'saq' ? 'Short Answer' : 'Spot'} Questions with AI
+                      </>
+                    )}
+                  </Button>
+                  {aiGenerationError && (
+                    <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm whitespace-pre-line">
+                      <p className="font-medium mb-1">Error generating questions:</p>
+                      <p>{aiGenerationError}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select a topic and difficulty first, then click to generate {questionType} questions using AI.
+                    {description.trim() && " The AI will use your quiz description to create more relevant questions."}
+                    <br />
+                    <span className="text-primary-foreground/70">Powered by Google Gemini 1.5 Pro</span>
+                  </p>
+                </div>
+                
                 <div className="mb-4">
                   <Label htmlFor="questionText">Question</Label>
                   <Textarea 
@@ -623,22 +1144,54 @@ export default function CreateQuizPage() {
                     animate={{ opacity: 1, height: 'auto' }}
                     transition={{ duration: 0.3 }}
                   >
-                    <Label htmlFor="imageUrl">Image URL</Label>
-                    <Input 
-                      id="imageUrl" 
-                      value={imageUrl} 
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="Enter image URL" 
-                      className={errors.imageUrl ? "border-red-500" : ""}
-                    />
-                    {errors.imageUrl && <p className="text-red-500 text-sm mt-1">{errors.imageUrl}</p>}
+                    <div className="mb-4">
+                      <Label htmlFor="imageUrl">Image</Label>
+                      <div className="flex flex-col gap-4">
+                        <div className="flex gap-2">
+                          <Input 
+                            id="imageUrl" 
+                            value={imageUrl} 
+                            onChange={(e) => setImageUrl(e.target.value)}
+                            placeholder="Enter image URL" 
+                            className={errors.imageUrl ? "border-red-500" : ""}
+                          />
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploading}
+                          >
+                            {isUploading ? (
+                              <span className="flex items-center">
+                                <span className="animate-spin mr-2">⭮</span> Uploading...
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Upload className="h-4 w-4 mr-1" /> Upload
+                              </span>
+                            )}
+                          </Button>
+                          <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            accept="image/*" 
+                            onChange={handleFileUpload}
+                          />
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          You can either enter an image URL or upload an image file (max 5MB)
+                        </p>
+                      </div>
+                      {errors.imageUrl && <p className="text-red-500 text-sm mt-1">{errors.imageUrl}</p>}
+                    </div>
                     
                     {imageUrl && (
                       <div className="mt-2 mb-4 relative border rounded-md overflow-hidden">
                         <img 
                           src={imageUrl} 
                           alt="Image to identify" 
-                          className="max-w-full h-auto"
+                          className="max-w-full h-auto max-h-[300px] mx-auto"
                           onError={() => setErrors({...errors, imageUrl: 'Invalid image URL'})}
                         />
                       </div>
@@ -771,20 +1324,38 @@ export default function CreateQuizPage() {
                     <Label>Acceptable Answers</Label>
                     {errors.acceptableAnswers && <p className="text-red-500 text-sm mt-1">{errors.acceptableAnswers}</p>}
                     
-                    {acceptableAnswers.map((answer, index) => (
-                      <div key={index} className="flex items-center gap-2 mb-2">
+                    <div className="mb-2">
+                      <Label htmlFor="primaryAnswer" className="text-sm text-muted-foreground">Primary Answer (canonical form)</Label>
+                      <Input
+                        id="primaryAnswer"
+                        value={acceptableAnswers[0] || ''}
+                        onChange={(e) => updateAcceptableAnswer(0, e.target.value)}
+                        placeholder="Primary correct answer"
+                        className="mb-1"
+                      />
+                      <p className="text-xs text-muted-foreground mb-3">
+                        This is the main correct answer in its canonical form
+                      </p>
+                    </div>
+                    
+                    <Label className="text-sm text-muted-foreground">Alternative Acceptable Answers</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Include variations in capitalization, spelling, abbreviations, and synonyms
+                    </p>
+                    
+                    {acceptableAnswers.slice(1).map((answer, index) => (
+                      <div key={index + 1} className="flex items-center gap-2 mb-2">
                         <Input
                           value={answer}
-                          onChange={(e) => updateAcceptableAnswer(index, e.target.value)}
-                          placeholder={`Acceptable answer ${index + 1}`}
+                          onChange={(e) => updateAcceptableAnswer(index + 1, e.target.value)}
+                          placeholder={`Alternative answer ${index + 1}`}
                           className="flex-1"
                         />
                         <Button 
                           type="button" 
                           variant="destructive" 
                           size="sm"
-                          onClick={() => removeAcceptableAnswer(index)}
-                          disabled={acceptableAnswers.length <= 1}
+                          onClick={() => removeAcceptableAnswer(index + 1)}
                         >
                           <Trash className="h-4 w-4" />
                         </Button>
@@ -799,8 +1370,18 @@ export default function CreateQuizPage() {
                       className="mt-2"
                     >
                       <Plus className="h-4 w-4 mr-1" />
-                      Add Acceptable Answer
+                      Add Alternative Answer
                     </Button>
+                    
+                    <div className="mt-4 p-3 bg-secondary/30 rounded-md">
+                      <h4 className="text-sm font-medium mb-1">Tips for Alternative Answers:</h4>
+                      <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+                        <li>Include both uppercase and lowercase variations (e.g., "kanamycin" and "Kanamycin")</li>
+                        <li>Add common abbreviations if applicable</li>
+                        <li>Include common misspellings that should be accepted</li>
+                        <li>Add synonyms or equivalent terms</li>
+                      </ul>
+                    </div>
                   </motion.div>
                 )}
                 
@@ -892,86 +1473,65 @@ export default function CreateQuizPage() {
             </div>
             
             <div className="col-span-1">
-              <Card className="p-6">
-                <h2 className="text-xl font-bold mb-4">Quiz Summary</h2>
+              <Card className="p-6 sticky top-6">
+                <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
+                  <span>Quiz Summary</span>
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {questions.length} question{questions.length !== 1 ? 's' : ''}
+                  </span>
+                </h2>
                 
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Title</Label>
-                    <p className="font-medium">{title || 'Untitled Quiz'}</p>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Topic</Label>
-                    <p className="font-medium">{topic || 'Not specified'}</p>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Difficulty</Label>
-                    <p className="font-medium capitalize">{difficulty || 'Not specified'}</p>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Questions</Label>
-                    <p className="font-medium">{questions.length}</p>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Visibility</Label>
-                    <p className="font-medium">{isPublic ? 'Public' : 'Private'}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <h3 className="font-semibold">Questions List</h3>
-                  {questions.length === 0 ? (
-                    <p className="text-muted-foreground text-sm italic">No questions added yet</p>
-                  ) : (
-                    <div className="max-h-[300px] overflow-y-auto">
-                      {questions.map((q, idx) => (
-                        <div 
-                          key={q.id} 
-                          className={`p-3 mb-2 rounded-md cursor-pointer border ${
-                            idx === currentQuestionIndex ? 'border-primary bg-primary/5' : 'border-secondary'
-                          }`}
-                          onClick={() => {
-                            setCurrentQuestionIndex(idx);
-                            loadQuestion(q);
+                {questions.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="max-h-[500px] overflow-y-auto pr-2">
+                      {questions.map((question, index) => (
+                        <QuestionCard
+                          key={question.id}
+                          question={question}
+                          index={index}
+                          onEdit={() => {
+                            setCurrentQuestionIndex(index);
+                            loadQuestion(question);
                           }}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium">Question {idx + 1}</span>
-                            <span className="text-xs text-muted-foreground capitalize">{q.type}</span>
-                          </div>
-                          <p className="text-sm line-clamp-1">{q.question}</p>
-                        </div>
+                          onDelete={() => {
+                            if (confirm('Are you sure you want to delete this question?')) {
+                              const updatedQuestions = [...questions];
+                              updatedQuestions.splice(index, 1);
+                              setQuestions(updatedQuestions);
+                            }
+                          }}
+                        />
                       ))}
                     </div>
-                  )}
-                </div>
-                
-                {errors.submit && (
-                  <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-                    {errors.submit}
+                    
+                    <div className="pt-4 border-t">
+                      <Button 
+                        onClick={saveQuiz} 
+                        disabled={loading || questions.length === 0}
+                        className="w-full"
+                      >
+                        {loading ? (
+                          <span className="flex items-center">
+                            <span className="animate-spin mr-2">⭮</span> Saving...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Check className="mr-2 h-4 w-4" /> Save & Publish Quiz
+                          </span>
+                        )}
+                      </Button>
+                      
+                      {errors.submit && (
+                        <p className="text-red-500 text-sm mt-2">{errors.submit}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="mb-4">No questions added yet</p>
+                    <p className="text-sm">Create questions using the form or generate them with AI</p>
                   </div>
                 )}
-                
-                <div className="mt-6 space-y-2">
-                  <Button className="w-full" onClick={saveQuiz} disabled={loading}>
-                    {loading ? (
-                      <span className="flex items-center">
-                        <span className="animate-spin mr-2">⭮</span> Saving...
-                      </span>
-                    ) : (
-                      <span className="flex items-center">
-                        <Save className="mr-2 h-4 w-4" /> Save & Publish Quiz
-                      </span>
-                    )}
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={saveAsDraft}>
-                    <Save className="mr-2 h-4 w-4" /> Save as Draft
-                  </Button>
-                </div>
               </Card>
             </div>
           </div>

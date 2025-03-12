@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<UserCredential>;
   signUp: (email: string, password: string, name: string) => Promise<UserCredential>;
   logout: () => Promise<void>;
+  refreshToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,6 +24,9 @@ const AuthContext = createContext<AuthContextType>({
     throw new Error('Not implemented');
   },
   logout: async () => {
+    throw new Error('Not implemented');
+  },
+  refreshToken: async () => {
     throw new Error('Not implemented');
   },
 });
@@ -117,12 +121,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Add a method to refresh the token
+  const refreshToken = async (): Promise<string | null> => {
+    try {
+      if (!user) return null;
+      
+      // Force refresh the token
+      const token = await user.getIdToken(true);
+      return token;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return null;
+    }
+  };
+
   const value = {
     user,
     loading,
     signIn: login,
     signUp,
     logout,
+    refreshToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

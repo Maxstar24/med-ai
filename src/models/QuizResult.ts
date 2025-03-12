@@ -10,7 +10,7 @@ interface IAnswer {
 
 export interface IQuizResult extends Document {
   quizId: Types.ObjectId;
-  userId: Types.ObjectId;
+  userId: string;
   score: number;
   totalQuestions: number;
   timeSpent: number;
@@ -49,9 +49,9 @@ const QuizResultSchema = new Schema<IQuizResult>({
     required: true
   },
   userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: String,
+    required: true,
+    index: true
   },
   score: {
     type: Number,

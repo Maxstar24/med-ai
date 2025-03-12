@@ -1,90 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { writeFile } from 'fs/promises';
+import { verifyFirebaseToken } from '@/lib/firebase-admin';
+import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
 
-// Set dynamic to force-dynamic to prevent caching
-export const dynamic = 'force-dynamic';
+// Maximum file size (5MB)
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-// Create uploads directory if it doesn't exist
+// Ensure uploads directory exists
 async function ensureUploadsDir() {
   const uploadsDir = join(process.cwd(), 'public', 'uploads');
-  try {
+  if (!existsSync(uploadsDir)) {
     await mkdir(uploadsDir, { recursive: true });
-    return uploadsDir;
-  } catch (error) {
-    console.error('Error creating uploads directory:', error);
-    throw error;
   }
+  return uploadsDir;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // Verify Firebase token
+    const authHeader = request.headers.get('authorization');
+    const decodedToken = await verifyFirebaseToken(authHeader);
+    
+    if (!decodedToken) {
+      console.error('Authentication failed: Invalid or expired token');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Process the form data
+    
+    // Parse the multipart form data
     const formData = await request.formData();
     const file = formData.get('file') as File;
-
+    
     if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
-
+    
     // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      return NextResponse.json(
-        { error: 'Invalid file type. Only JPEG, PNG, GIF, and WebP are supported.' },
-        { status: 400 }
-      );
+    if (!file.type.startsWith('image/')) {
+      return NextResponse.json({ error: 'Only image files are allowed' }, { status: 400 });
     }
-
-    // Validate file size (5MB max)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: 'File too large. Maximum size is 5MB.' },
-        { status: 400 }
-      );
+    
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'File size exceeds the limit (5MB)' }, { status: 400 });
     }
-
+    
     // Generate a unique filename
     const fileExtension = file.name.split('.').pop();
     const fileName = `${uuidv4()}.${fileExtension}`;
     
-    // Ensure uploads directory exists
-    const uploadsDir = await ensureUploadsDir();
-    
-    // Save the file
-    const filePath = join(uploadsDir, fileName);
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, fileBuffer);
-
-    // Generate the URL
-    const fileUrl = `/uploads/${fileName}`;
-
-    return NextResponse.json({
-      url: fileUrl,
-      message: 'File uploaded successfully',
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json(
-      { error: 'Failed to process upload', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    try {
+      // Ensure uploads directory exists
+      const uploadsDir = await ensureUploadsDir();
+      
+      // Convert the file to a Buffer
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      
+      // Save the file to the uploads directory
+      const filePath = join(uploadsDir, fileName);
+      await writeFile(filePath, buffer);
+      
+      // Return the URL to the uploaded file
+      const fileUrl = `/uploads/${fileName}`;
+      
+      return NextResponse.json({ 
+        success: true, 
+        url: fileUrl,
+        fileName: fileName,
+        fileSize: file.size,
+        fileType: file.type
+      });
+    } catch (error: any) {
+      console.error('Error saving file:', error);
+      return NextResponse.json({ 
+        error: 'Failed to save file', 
+        details: error.message 
+      }, { status: 500 });
+    }
+  } catch (error: any) {
+    console.error('Error processing upload:', error);
+    return NextResponse.json({ 
+      error: 'Failed to process upload', 
+      details: error.message 
+    }, { status: 500 });
   }
 } 

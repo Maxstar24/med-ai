@@ -30,6 +30,7 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const registered = searchParams.get("registered");
   const callbackUrl = searchParams.get("callbackUrl") || '/dashboard';
+  const forceRefresh = searchParams.get("forceRefresh") === "true";
   const { user, loading: authLoading, signIn } = useAuth();
 
   // Redirect if already authenticated
@@ -38,6 +39,13 @@ function LoginContent() {
     
     // Only redirect if user is authenticated and not already on the login page
     if (user && !authLoading) {
+      // If forceRefresh is true, sign out the user first to force a new login
+      if (forceRefresh) {
+        console.log("Force refresh requested, signing out user");
+        // We'll let the user manually log in again
+        return;
+      }
+      
       // Prevent redirect loops by checking if the callback URL is the login page
       if (callbackUrl.includes('/login')) {
         console.log("Preventing redirect loop, redirecting to dashboard instead");
@@ -47,7 +55,7 @@ function LoginContent() {
         router.push(callbackUrl);
       }
     }
-  }, [user, authLoading, callbackUrl, router]);
+  }, [user, authLoading, callbackUrl, router, forceRefresh]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -132,6 +140,11 @@ function LoginContent() {
             {registered && (
               <div className="p-3 text-sm text-green-500 bg-green-500/10 border border-green-500/20 rounded-md">
                 Account created successfully! Please sign in.
+              </div>
+            )}
+            {forceRefresh && (
+              <div className="p-3 text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                Your session has expired. Please sign in again to continue.
               </div>
             )}
             {error && (

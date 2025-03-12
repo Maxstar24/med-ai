@@ -1,15 +1,17 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
 // Define the Question interface
-interface IQuestion {
-  type: 'multiple-choice' | 'true-false' | 'fill-in-blank' | 'matching';
+export interface IQuestion {
+  type: 'multiple-choice' | 'true-false' | 'fill-in-blank' | 'matching' | 'spot' | 'saq';
   question: string;
-  options: string[];
-  correctAnswer: string | number | boolean;
+  options?: string[];
+  correctAnswer: string | boolean | string[];
   explanation: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  difficulty: string;
   topic: string;
   tags: string[];
+  imageUrl?: string;
+  spotCoordinates?: { x: number; y: number; radius: number; label: string }[];
 }
 
 // Define the Quiz interface
@@ -19,8 +21,9 @@ export interface IQuiz extends Document {
   questions: IQuestion[];
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   topic: string;
+  tags: string[];
   createdBy: Types.ObjectId;
-  userFirebaseUid: string;
+  userFirebaseUid?: string;
   isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -31,7 +34,7 @@ export interface IQuiz extends Document {
 const QuestionSchema = new Schema<IQuestion>({
   type: {
     type: String,
-    enum: ['multiple-choice', 'true-false', 'fill-in-blank', 'matching'],
+    enum: ['multiple-choice', 'true-false', 'fill-in-blank', 'matching', 'spot', 'saq'],
     required: true
   },
   question: {
@@ -40,7 +43,7 @@ const QuestionSchema = new Schema<IQuestion>({
   },
   options: {
     type: [String],
-    required: true
+    required: false
   },
   correctAnswer: {
     type: Schema.Types.Mixed,
@@ -52,7 +55,6 @@ const QuestionSchema = new Schema<IQuestion>({
   },
   difficulty: {
     type: String,
-    enum: ['beginner', 'intermediate', 'advanced'],
     required: true
   },
   topic: {
@@ -62,18 +64,29 @@ const QuestionSchema = new Schema<IQuestion>({
   tags: {
     type: [String],
     default: []
-  }
+  },
+  imageUrl: {
+    type: String,
+    required: false
+  },
+  spotCoordinates: [{
+    x: Number,
+    y: Number,
+    radius: Number,
+    label: String,
+  }],
 });
 
 // Define the Quiz schema
 const QuizSchema = new Schema<IQuiz>({
   title: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
   },
   description: {
     type: String,
-    required: true
+    required: true,
   },
   questions: {
     type: [QuestionSchema],
@@ -88,6 +101,10 @@ const QuizSchema = new Schema<IQuiz>({
     type: String,
     required: true
   },
+  tags: {
+    type: [String],
+    default: []
+  },
   createdBy: {
     type: Schema.Types.ObjectId,
     ref: 'User',
@@ -95,8 +112,6 @@ const QuizSchema = new Schema<IQuiz>({
   },
   userFirebaseUid: {
     type: String,
-    required: false,
-    index: true
   },
   isPublic: {
     type: Boolean,
