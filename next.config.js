@@ -15,6 +15,23 @@ const nextConfig = {
     // your project has TypeScript errors.
     ignoreBuildErrors: true,
   },
+  // Disable React strict mode for production
+  reactStrictMode: false,
+  // Disable source maps in production
+  productionBrowserSourceMaps: false,
+  // Disable image optimization during build to reduce memory usage
+  images: {
+    unoptimized: true,
+  },
+  // Increase build timeout
+  staticPageGenerationTimeout: 180,
+  // Experimental features
+  experimental: {
+    // Increase memory limit for builds
+    memoryBasedWorkersCount: true,
+    // Disable incremental builds
+    incrementalCacheHandlerPath: false,
+  },
 }
 
 module.exports = nextConfig;
