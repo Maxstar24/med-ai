@@ -26,9 +26,10 @@ export const dynamic = 'force-dynamic';
 // PUT endpoint to update a comment
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; commentId: string } }
+  context: { params: { id: string; commentId: string } }
 ) {
   try {
+    const { params } = context;
     // Verify user authentication
     const decodedToken = await verifyFirebaseToken(req);
     if (!decodedToken) {
@@ -107,9 +108,10 @@ export async function PUT(
 // DELETE endpoint to remove a comment
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; commentId: string } }
+  context: { params: { id: string; commentId: string } }
 ) {
   try {
+    const { params } = context;
     // Verify user authentication
     const decodedToken = await verifyFirebaseToken(req);
     if (!decodedToken) {
@@ -184,9 +186,10 @@ export async function DELETE(
 // POST endpoint to like/unlike a comment
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; commentId: string } }
+  context: { params: { id: string; commentId: string } }
 ) {
   try {
+    const { params } = context;
     // Verify user authentication
     const decodedToken = await verifyFirebaseToken(req);
     if (!decodedToken) {
