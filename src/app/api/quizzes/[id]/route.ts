@@ -16,7 +16,8 @@ export async function GET(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization');
+    // Ensure request is defined before accessing its properties
+    const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -96,7 +97,8 @@ export async function PATCH(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization');
+    // Ensure request is defined before accessing its properties
+    const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -143,7 +145,16 @@ export async function PATCH(
     }
     
     // Get the updated quiz data from the request body
-    const data = await request.json();
+    let data = {};
+    try {
+      data = await request?.json();
+    } catch (e) {
+      console.error('Error parsing request body:', e);
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
     
     // Update the quiz in the database
     const updatedQuiz = await Quiz.findByIdAndUpdate(
@@ -175,7 +186,8 @@ export async function DELETE(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization');
+    // Ensure request is defined before accessing its properties
+    const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {

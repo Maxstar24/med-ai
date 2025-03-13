@@ -50,7 +50,8 @@ export async function GET(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization');
+    // Ensure request is defined before accessing its properties
+    const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -104,7 +105,8 @@ export async function POST(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization');
+    // Ensure request is defined before accessing its properties
+    const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -122,7 +124,16 @@ export async function POST(
     }
     
     // Get the request body
-    const questionData = await request.json();
+    let questionData = {};
+    try {
+      questionData = await request?.json();
+    } catch (e) {
+      console.error('Error parsing request body:', e);
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
     
     // Find the quiz
     const quiz = await Quiz.findById(quizId);
@@ -174,7 +185,8 @@ export async function PATCH(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization');
+    // Ensure request is defined before accessing its properties
+    const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -192,7 +204,18 @@ export async function PATCH(
     }
     
     // Get the request body
-    const { questionId, updates } = await request.json();
+    let questionId, updates;
+    try {
+      const body = await request?.json();
+      questionId = body.questionId;
+      updates = body.updates;
+    } catch (e) {
+      console.error('Error parsing request body:', e);
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
     
     if (!questionId) {
       return NextResponse.json(
@@ -265,7 +288,8 @@ export async function DELETE(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization');
+    // Ensure request is defined before accessing its properties
+    const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -283,8 +307,15 @@ export async function DELETE(
     }
     
     // Get the question ID from the request
-    const { searchParams } = new URL(request.url);
-    const questionId = searchParams.get('questionId');
+    let questionId = null;
+    try {
+      if (request?.url) {
+        const { searchParams } = new URL(request.url);
+        questionId = searchParams.get('questionId');
+      }
+    } catch (e) {
+      console.error('Error parsing URL:', e);
+    }
     
     if (!questionId) {
       return NextResponse.json(
