@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -207,7 +207,8 @@ const DifficultySelect = ({ onSelect }: DifficultySelectProps) => {
 };
 
 export default function PracticePage() {
-  const { data: session, status } = useSession();
+  const router = useRouter();
+  const { user, loading } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [quizState, setQuizState] = useState<QuizState>({
     currentQuestionIndex: 0,
@@ -326,7 +327,7 @@ export default function PracticePage() {
     setSelectedDifficulty(null);
   };
 
-  if (status === 'loading' || isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-black">
         <MainNav />
@@ -339,8 +340,8 @@ export default function PracticePage() {
     );
   }
 
-  if (status === 'unauthenticated') {
-    redirect('/login');
+  if (!user) {
+    router.push('/login');
   }
 
   if (error) {

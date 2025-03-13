@@ -25,10 +25,8 @@ async function verifyFirebaseToken(req: NextRequest) {
 export const dynamic = 'force-dynamic';
 
 // GET comments for a case
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req, context) {
+  const { params } = context;
   try {
     const { searchParams } = new URL(req.url);
     const parentId = searchParams.get('parentId');
@@ -95,10 +93,8 @@ export async function GET(
 }
 
 // POST a new comment
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req, context) {
+  const { params } = context;
   try {
     const decodedToken = await verifyFirebaseToken(req);
     if (!decodedToken) {

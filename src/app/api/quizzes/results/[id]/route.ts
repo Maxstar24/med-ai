@@ -89,10 +89,8 @@ const answerSchema = z.union([
 ]);
 
 // GET: Fetch a specific quiz result by ID
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
-) {
+export async function GET(req, context) {
+  const { params } = context;
   try {
     // Connect to the database
     await connectToDatabase();

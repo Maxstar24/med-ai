@@ -16,7 +16,6 @@ export async function GET(
     await connectToDatabase();
     
     // Verify Firebase token
-    // Ensure request is defined before accessing its properties
     const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
@@ -29,9 +28,7 @@ export async function GET(
     
     // Get the quiz ID from the URL parameters
     console.log('Params:', params);
-    // Properly await params before using it
-    const resolvedParams = await params;
-    const id = resolvedParams.id;
+    const id = params.id;
     console.log('Quiz ID:', id);
     
     if (!id || id === 'undefined') {
@@ -97,7 +94,6 @@ export async function PATCH(
     await connectToDatabase();
     
     // Verify Firebase token
-    // Ensure request is defined before accessing its properties
     const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
@@ -186,7 +182,6 @@ export async function DELETE(
     await connectToDatabase();
     
     // Verify Firebase token
-    // Ensure request is defined before accessing its properties
     const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
