@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { z } from 'zod';
+import { auth } from '@/lib/firebase-admin';
 
 const questionRequestSchema = z.object({
   category: z.enum(['Cardiology', 'Pharmacology', 'Neurology']).optional(),
@@ -77,11 +76,22 @@ const questionsDB = [
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Check authentication using Firebase
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    try {
+      // Verify the Firebase token
+      await auth.verifyIdToken(token);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
         { status: 401 }
       );
     }
@@ -141,11 +151,22 @@ export async function GET(request: Request) {
 // Endpoint to submit answers and get results
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Check authentication using Firebase
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    try {
+      // Verify the Firebase token
+      await auth.verifyIdToken(token);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
         { status: 401 }
       );
     }

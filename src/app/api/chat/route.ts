@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { z } from 'zod';
 import { generateMedicalResponse } from '@/services/ai';
+import { auth } from '@/lib/firebase-admin';
 
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty'),
@@ -11,11 +10,22 @@ const chatRequestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Check authentication using Firebase
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    try {
+      // Verify the Firebase token
+      await auth.verifyIdToken(token);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
         { status: 401 }
       );
     }
