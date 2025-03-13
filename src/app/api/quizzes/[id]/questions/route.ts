@@ -41,14 +41,15 @@ async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedId
 }
 
 // GET: Fetch questions for a specific quiz
-export async function GET(req, context) {
-  const { params } = context;
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     // Connect to the database
     await connectToDatabase();
     
     // Verify Firebase token
-    // Ensure request is defined before accessing its properties
     const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
@@ -94,14 +95,15 @@ export async function GET(req, context) {
 }
 
 // POST: Add a new question to a quiz
-export async function POST(req, context) {
-  const { params } = context;
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     // Connect to the database
     await connectToDatabase();
     
     // Verify Firebase token
-    // Ensure request is defined before accessing its properties
     const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
@@ -172,14 +174,15 @@ export async function POST(req, context) {
 }
 
 // PATCH: Update a question in a quiz
-export async function PATCH(req, context) {
-  const { params } = context;
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     // Connect to the database
     await connectToDatabase();
     
     // Verify Firebase token
-    // Ensure request is defined before accessing its properties
     const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
@@ -273,14 +276,15 @@ export async function PATCH(req, context) {
 }
 
 // DELETE: Remove a question from a quiz
-export async function DELETE(req, context) {
-  const { params } = context;
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     // Connect to the database
     await connectToDatabase();
     
     // Verify Firebase token
-    // Ensure request is defined before accessing its properties
     const authHeader = request?.headers?.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
