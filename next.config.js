@@ -31,7 +31,16 @@ const nextConfig = {
     memoryBasedWorkersCount: true,
     // Disable incremental builds
     incrementalCacheHandlerPath: false,
+    // Disable static generation for authentication pages
+    unstable_allowDynamic: [
+      '**/node_modules/next-auth/**',
+      '**/node_modules/firebase/**',
+      '**/node_modules/jose/**',
+      '**/src/app/**/page.tsx', // Allow all pages to be dynamically rendered
+    ],
   },
+  // Disable static optimization for all pages
+  output: 'standalone',
 }
 
 module.exports = nextConfig;

@@ -83,5 +83,103 @@ function fixRouteHandlerTypes(dir) {
 
 fixRouteHandlerTypes(apiDir);
 
+// Fix NextAuth references in client components
+console.log('📝 Checking for NextAuth references in client components...');
+const appDir = path.join(process.cwd(), 'src', 'app');
+
+function fixNextAuthReferences(dir) {
+  if (!fs.existsSync(dir)) return;
+  
+  const items = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (const item of items) {
+    const itemPath = path.join(dir, item.name);
+    
+    if (item.isDirectory()) {
+      fixNextAuthReferences(itemPath);
+    } else if (item.name.endsWith('.tsx') || item.name.endsWith('.jsx') || item.name.endsWith('.ts') || item.name.endsWith('.js')) {
+      let content = fs.readFileSync(itemPath, 'utf8');
+      
+      // Check if file contains NextAuth imports
+      if (content.includes('next-auth/react') || content.includes('next-auth/next')) {
+        console.log(`⚠️ Fixing NextAuth references in ${itemPath}...`);
+        
+        // Replace NextAuth imports with Firebase Auth
+        content = content.replace(
+          /import\s+{\s*useSession\s*(?:,\s*[^}]+)?\s*}\s+from\s+['"]next-auth\/react['"]/g,
+          "import { useAuth } from '@/contexts/AuthContext'"
+        );
+        
+        // Replace useSession with useAuth
+        content = content.replace(
+          /const\s+{\s*data\s*:\s*session\s*,\s*status\s*}\s*=\s*useSession\(\)/g,
+          "const { user, loading } = useAuth()"
+        );
+        
+        // Replace status === 'loading' with loading
+        content = content.replace(
+          /status\s*===\s*['"]loading['"]/g,
+          "loading"
+        );
+        
+        // Replace status === 'unauthenticated' with !user
+        content = content.replace(
+          /status\s*===\s*['"]unauthenticated['"]/g,
+          "!user"
+        );
+        
+        // Replace redirect with router.push
+        content = content.replace(
+          /import\s+{\s*redirect\s*(?:,\s*[^}]+)?\s*}\s+from\s+['"]next\/navigation['"]/g,
+          "import { useRouter } from 'next/navigation'"
+        );
+        
+        content = content.replace(
+          /redirect\(['"]([^'"]+)['"]\)/g,
+          "router.push('$1')"
+        );
+        
+        // Add router if it doesn't exist
+        if (content.includes("router.push") && !content.includes("const router")) {
+          content = content.replace(
+            /export\s+default\s+function\s+([A-Za-z0-9_]+)\s*\([^)]*\)\s*{/,
+            "export default function $1() {\n  const router = useRouter();"
+          );
+        }
+        
+        fs.writeFileSync(itemPath, content);
+      }
+    }
+  }
+}
+
+fixNextAuthReferences(appDir);
+
+// Disable static generation for pages that use authentication
+console.log('📝 Configuring static generation settings...');
+const nextConfigWithStaticSettings = fs.readFileSync(nextConfigPath, 'utf8');
+
+if (!nextConfigWithStaticSettings.includes('unstable_allowDynamic')) {
+  console.log('⚠️ Adding dynamic rendering configuration to Next.js config...');
+  const updatedConfig = nextConfigWithStaticSettings.replace(
+    'module.exports = nextConfig;',
+    `// Configure pages that should be dynamically rendered
+if (!nextConfig.experimental) {
+  nextConfig.experimental = {};
+}
+
+// Allow dynamic rendering for authentication-dependent pages
+nextConfig.experimental.unstable_allowDynamic = [
+  '**/node_modules/next-auth/**',
+  '**/node_modules/firebase/**',
+  '**/node_modules/jose/**',
+  '**/src/app/**/page.tsx', // Allow all pages to be dynamically rendered
+];
+
+module.exports = nextConfig;`
+  );
+  fs.writeFileSync(nextConfigPath, updatedConfig);
+}
+
 console.log('✅ Deployment fix script completed successfully!');
 console.log('You can now deploy your application with confidence.'); 

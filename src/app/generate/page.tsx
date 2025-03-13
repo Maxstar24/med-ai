@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { UploadDocument } from '@/components/upload-document';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   FileText,
   Brain,
@@ -31,17 +31,27 @@ interface GeneratedQuestion {
 }
 
 export default function GeneratePage() {
-  const { data: session, status } = useSession();
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [activeTab, setActiveTab] = useState('upload');
   const [savedToQuizzes, setSavedToQuizzes] = useState(false);
 
-  if (status === 'loading') {
+  useEffect(() => {
+    // Redirect if not authenticated after loading completes
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  // Show loading state while authentication is being checked
+  if (loading) {
     return <div>Loading...</div>;
   }
 
-  if (status === 'unauthenticated') {
-    redirect('/login');
+  // Don't render the main content if not authenticated
+  if (!user) {
+    return null; // Will redirect in the useEffect
   }
 
   const handleQuestionsGenerated = (newQuestions: GeneratedQuestion[]) => {
@@ -52,10 +62,14 @@ export default function GeneratePage() {
 
   const handleSaveQuiz = async () => {
     try {
+      // Get the auth token for the API request
+      const token = await user.getIdToken();
+      
       const response = await fetch('/api/quizzes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           questions,
