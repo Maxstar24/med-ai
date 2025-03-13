@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -74,13 +74,14 @@ const defaultPreferencesValues = {
 };
 
 export default function ProfilePage() {
-  const session = useSession();
+  const { user, loading } = useAuth();
+  const router = useRouter();
 
-  if (session.status === 'loading') {
+  if (loading) {
     return <LoadingUI />;
   }
 
-  if (session.status === 'unauthenticated') {
+  if (!user) {
     redirect('/login');
   }
 
@@ -105,7 +106,7 @@ function LoadingUI() {
 }
 
 function ProfileContent() {
-  const session = useSession();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState({
     profile: false,
@@ -124,7 +125,7 @@ function ProfileContent() {
   });
 
   useEffect(() => {
-    if (!session.data?.user) return;
+    if (!user) return;
 
     async function loadData() {
       try {
@@ -156,13 +157,13 @@ function ProfileContent() {
     }
 
     loadData();
-  }, [session.data?.user]);
+  }, [user]);
 
-  if (session.status === 'loading' || isLoading.initial) {
+  if (loading || isLoading.initial) {
     return <LoadingUI />;
   }
 
-  if (session.status === 'unauthenticated') {
+  if (!user) {
     return null;
   }
 

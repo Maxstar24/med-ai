@@ -1,7 +1,5 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
 import { MainNav } from '@/components/ui/navigation-menu';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
