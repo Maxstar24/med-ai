@@ -155,6 +155,93 @@ function fixNextAuthReferences(dir) {
 
 fixNextAuthReferences(appDir);
 
+// Fix useSearchParams issues by wrapping in Suspense
+console.log('📝 Checking for useSearchParams without Suspense boundaries...');
+
+function fixUseSearchParamsIssues(dir) {
+  if (!fs.existsSync(dir)) return;
+  
+  const items = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (const item of items) {
+    const itemPath = path.join(dir, item.name);
+    
+    if (item.isDirectory()) {
+      fixUseSearchParamsIssues(itemPath);
+    } else if (item.name === 'page.tsx' || item.name === 'page.jsx') {
+      let content = fs.readFileSync(itemPath, 'utf8');
+      
+      // Check if file uses useSearchParams but doesn't have Suspense
+      if (content.includes('useSearchParams') && !content.includes('<Suspense')) {
+        console.log(`⚠️ Fixing useSearchParams in ${itemPath}...`);
+        
+        // Add Suspense import if not present
+        if (!content.includes('Suspense')) {
+          content = content.replace(
+            /import React,\s*{([^}]*)}\s*from\s*['"]react['"]/,
+            (match, imports) => {
+              if (imports.includes('Suspense')) {
+                return match;
+              }
+              return `import React, {${imports.trim() ? `${imports}, ` : ''}Suspense} from 'react'`;
+            }
+          );
+          
+          // If no React import, add it
+          if (!content.includes('import React')) {
+            content = content.replace(
+              /import\s+{([^}]*)}\s*from\s*['"]react['"]/,
+              (match, imports) => {
+                if (imports.includes('Suspense')) {
+                  return match;
+                }
+                return `import {${imports.trim() ? `${imports}, ` : ''}Suspense} from 'react'`;
+              }
+            );
+          }
+          
+          // If still no Suspense import, add it at the top
+          if (!content.includes('Suspense')) {
+            content = content.replace(
+              /'use client';/,
+              `'use client';\n\nimport { Suspense } from 'react';`
+            );
+          }
+        }
+        
+        // Extract the main component
+        const componentMatch = content.match(/export\s+default\s+function\s+([A-Za-z0-9_]+)/);
+        if (componentMatch) {
+          const componentName = componentMatch[1];
+          const contentComponentName = `${componentName}Content`;
+          
+          // Check if the component is already wrapped in Suspense
+          if (!content.includes(`<Suspense`) && !content.includes(`<${contentComponentName}`)) {
+            // Create a content component
+            content = content.replace(
+              new RegExp(`export\\s+default\\s+function\\s+${componentName}\\s*\\([^)]*\\)\\s*{`),
+              `function ${contentComponentName}() {`
+            );
+            
+            // Add the main component that wraps the content in Suspense
+            content += `\n\nexport default function ${componentName}() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <${contentComponentName} />
+    </Suspense>
+  );
+}`;
+          }
+        }
+        
+        fs.writeFileSync(itemPath, content);
+      }
+    }
+  }
+}
+
+fixUseSearchParamsIssues(appDir);
+
 // Disable static generation for pages that use authentication
 console.log('📝 Configuring static generation settings...');
 const nextConfigWithStaticSettings = fs.readFileSync(nextConfigPath, 'utf8');
