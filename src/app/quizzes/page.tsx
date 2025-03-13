@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { redirect, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,7 +25,52 @@ interface Quiz {
   isPublic: boolean;
 }
 
-export default function QuizzesPage() {
+// Loading component
+function QuizzesLoading() {
+  return (
+    <div className="min-h-screen bg-background">
+      <MainNav />
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col items-center justify-center h-[70vh]">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8"
+          >
+            <h2 className="text-2xl font-bold text-center mb-2">Loading Quizzes</h2>
+            <p className="text-muted-foreground text-center">Please wait while we fetch available quizzes</p>
+          </motion.div>
+          
+          <div className="relative w-32 h-32">
+            <motion.div 
+              className="absolute inset-0 rounded-full border-4 border-primary/30"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            />
+            <motion.div 
+              className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            />
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center text-primary"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <Brain className="h-12 w-12" />
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main component that uses useSearchParams
+function QuizzesContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -120,46 +165,7 @@ export default function QuizzesPage() {
   );
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <MainNav />
-        <div className="container mx-auto p-6">
-          <div className="flex flex-col items-center justify-center h-[70vh]">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5 }}
-              className="mb-8"
-            >
-              <h2 className="text-2xl font-bold text-center mb-2">Loading Quizzes</h2>
-              <p className="text-muted-foreground text-center">Please wait while we fetch available quizzes</p>
-            </motion.div>
-            
-            <div className="relative w-32 h-32">
-              <motion.div 
-                className="absolute inset-0 rounded-full border-4 border-primary/30"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5 }}
-              />
-              <motion.div 
-                className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              />
-              <motion.div
-                className="absolute inset-0 flex items-center justify-center text-primary"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                <Brain className="h-12 w-12" />
-              </motion.div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <QuizzesLoading />;
   }
 
   return (
@@ -386,5 +392,14 @@ export default function QuizzesPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+// Main export that wraps the content in Suspense
+export default function QuizzesPage() {
+  return (
+    <Suspense fallback={<QuizzesLoading />}>
+      <QuizzesContent />
+    </Suspense>
   );
 }
