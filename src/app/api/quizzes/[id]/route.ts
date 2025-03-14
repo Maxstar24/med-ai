@@ -12,14 +12,23 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log('Starting GET request for quiz');
+    console.log('Request headers:', Object.fromEntries(request.headers.entries()));
+    
     // Connect to the database
+    console.log('Connecting to database...');
     await connectToDatabase();
+    console.log('Database connection successful');
     
     // Verify Firebase token
-    const authHeader = request?.headers?.get('authorization') || '';
+    console.log('Verifying Firebase token...');
+    const authHeader = request.headers.get('authorization') || '';
+    console.log('Auth header length:', authHeader.length);
     const decodedToken = await verifyFirebaseToken(authHeader);
+    console.log('Token verification result:', decodedToken ? 'success' : 'failed');
     
     if (!decodedToken) {
+      console.log('Token verification failed - returning 401');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -32,6 +41,7 @@ export async function GET(
     console.log('Quiz ID:', id);
     
     if (!id || id === 'undefined') {
+      console.log('Invalid quiz ID - returning 400');
       return NextResponse.json(
         { error: 'Invalid quiz ID' },
         { status: 400 }
@@ -39,9 +49,12 @@ export async function GET(
     }
     
     // Find the quiz in the database
+    console.log('Finding quiz in database...');
     const quiz = await Quiz.findById(id);
+    console.log('Quiz found:', quiz ? 'yes' : 'no');
     
     if (!quiz) {
+      console.log('Quiz not found - returning 404');
       return NextResponse.json(
         { error: 'Quiz not found' },
         { status: 404 }
@@ -49,34 +62,55 @@ export async function GET(
     }
     
     // Find the user by Firebase UID
+    console.log('Finding user with Firebase UID:', decodedToken.uid);
     const user = await User.findOne({ firebaseUid: decodedToken.uid });
     if (!user) {
       console.error('User not found in database:', decodedToken.uid);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+    console.log('User found:', user._id);
     
     // Check if user has permission to view this quiz
-    // Quiz is accessible if:
-    // 1. It's public, or
-    // 2. The user created it (check both MongoDB ID and Firebase UID)
+    console.log('Checking quiz permissions...');
+    console.log('Quiz public:', quiz.isPublic);
+    console.log('Quiz createdBy:', quiz.createdBy.toString());
+    console.log('User _id:', user._id.toString());
+    console.log('Quiz userFirebaseUid:', quiz.userFirebaseUid);
+    console.log('User firebaseUid:', decodedToken.uid);
+    
     if (!quiz.isPublic && 
         quiz.createdBy.toString() !== user._id.toString() && 
         quiz.userFirebaseUid !== decodedToken.uid) {
-      console.log('Access denied. Quiz is not public and user is not the creator.');
-      console.log('Quiz createdBy:', quiz.createdBy.toString());
-      console.log('User _id:', user._id.toString());
-      console.log('Quiz userFirebaseUid:', quiz.userFirebaseUid);
-      console.log('User firebaseUid:', decodedToken.uid);
-      
+      console.log('Access denied - returning 403');
       return NextResponse.json(
         { error: 'You do not have permission to view this quiz' },
         { status: 403 }
       );
     }
     
+    console.log('Access granted - returning quiz');
     return NextResponse.json({ quiz });
-  } catch (error) {
-    console.error('Error fetching quiz:', error);
+  } catch (error: unknown) {
+    // Enhanced error logging
+    console.error('Detailed error in quiz fetch:');
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return NextResponse.json(
+        { 
+          error: 'Failed to fetch quiz',
+          details: {
+            name: error.name,
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          }
+        },
+        { status: 500 }
+      );
+    }
+    // If it's not an Error instance, just log what we can
+    console.error('Unknown error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch quiz' },
       { status: 500 }
@@ -163,8 +197,27 @@ export async function PATCH(
     );
     
     return NextResponse.json({ quiz: updatedQuiz });
-  } catch (error) {
-    console.error('Error updating quiz:', error);
+  } catch (error: unknown) {
+    // Enhanced error logging
+    console.error('Detailed error in quiz update:');
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return NextResponse.json(
+        { 
+          error: 'Failed to update quiz',
+          details: {
+            name: error.name,
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          }
+        },
+        { status: 500 }
+      );
+    }
+    // If it's not an Error instance, just log what we can
+    console.error('Unknown error:', error);
     return NextResponse.json(
       { error: 'Failed to update quiz' },
       { status: 500 }
@@ -232,8 +285,27 @@ export async function DELETE(
     await Quiz.findByIdAndDelete(id);
     
     return NextResponse.json({ message: 'Quiz deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting quiz:', error);
+  } catch (error: unknown) {
+    // Enhanced error logging
+    console.error('Detailed error in quiz deletion:');
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      return NextResponse.json(
+        { 
+          error: 'Failed to delete quiz',
+          details: {
+            name: error.name,
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          }
+        },
+        { status: 500 }
+      );
+    }
+    // If it's not an Error instance, just log what we can
+    console.error('Unknown error:', error);
     return NextResponse.json(
       { error: 'Failed to delete quiz' },
       { status: 500 }
