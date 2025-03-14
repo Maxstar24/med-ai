@@ -592,6 +592,218 @@ export default function EditQuizPage() {
                 Add New Question
               </Button>
             </Card>
+
+            <Card className="p-6">
+              <h2 className="text-xl font-bold mb-4">
+                {currentQuestionIndex < questions.length ? 'Edit Question' : 'Add New Question'}
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="questionType">Question Type</Label>
+                  <Select value={questionType} onValueChange={(value: any) => setQuestionType(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select question type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
+                      <SelectItem value="true-false">True/False</SelectItem>
+                      <SelectItem value="saq">Short Answer</SelectItem>
+                      <SelectItem value="spot">Spot Question</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="questionText">Question Text</Label>
+                  <Textarea
+                    id="questionText"
+                    value={questionText}
+                    onChange={(e) => setQuestionText(e.target.value)}
+                    placeholder="Enter your question"
+                    className={errors.questionText ? 'border-red-500' : ''}
+                  />
+                  {errors.questionText && <p className="text-sm text-red-500 mt-1">{errors.questionText}</p>}
+                </div>
+
+                {questionType === 'multiple-choice' && (
+                  <div>
+                    <Label>Options</Label>
+                    <div className="space-y-2">
+                      {options.map((option, index) => (
+                        <div key={index} className="flex gap-2">
+                          <Input
+                            value={option}
+                            onChange={(e) => {
+                              const newOptions = [...options];
+                              newOptions[index] = e.target.value;
+                              setOptions(newOptions);
+                            }}
+                            placeholder={`Option ${index + 1}`}
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => setCorrectAnswer(option)}
+                            className={correctAnswer === option ? 'bg-green-100' : ''}
+                          >
+                            {correctAnswer === option ? <Check className="h-4 w-4" /> : 'Set as Answer'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    {errors.options && <p className="text-sm text-red-500 mt-1">{errors.options}</p>}
+                  </div>
+                )}
+
+                {questionType === 'true-false' && (
+                  <div>
+                    <Label>Correct Answer</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCorrectAnswer('true')}
+                        className={correctAnswer === 'true' ? 'bg-green-100' : ''}
+                      >
+                        True
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setCorrectAnswer('false')}
+                        className={correctAnswer === 'false' ? 'bg-green-100' : ''}
+                      >
+                        False
+                      </Button>
+                    </div>
+                    {errors.correctAnswer && <p className="text-sm text-red-500 mt-1">{errors.correctAnswer}</p>}
+                  </div>
+                )}
+
+                {questionType === 'saq' && (
+                  <div>
+                    <Label>Acceptable Answers</Label>
+                    <div className="space-y-2">
+                      {acceptableAnswers.map((answer, index) => (
+                        <div key={index} className="flex gap-2">
+                          <Input
+                            value={answer}
+                            onChange={(e) => {
+                              const newAnswers = [...acceptableAnswers];
+                              newAnswers[index] = e.target.value;
+                              if (index === acceptableAnswers.length - 1 && e.target.value) {
+                                newAnswers.push('');
+                              }
+                              setAcceptableAnswers(newAnswers);
+                            }}
+                            placeholder={index === 0 ? 'Primary answer' : `Alternative answer ${index}`}
+                          />
+                          {index > 0 && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                const newAnswers = acceptableAnswers.filter((_, i) => i !== index);
+                                setAcceptableAnswers(newAnswers);
+                              }}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {errors.acceptableAnswers && <p className="text-sm text-red-500 mt-1">{errors.acceptableAnswers}</p>}
+                  </div>
+                )}
+
+                {questionType === 'spot' && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="imageUrl">Image URL</Label>
+                      <Input
+                        id="imageUrl"
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        placeholder="Enter image URL"
+                        className={errors.imageUrl ? 'border-red-500' : ''}
+                      />
+                      {errors.imageUrl && <p className="text-sm text-red-500 mt-1">{errors.imageUrl}</p>}
+                    </div>
+
+                    <div>
+                      <Label>Correct Answer</Label>
+                      <Input
+                        value={correctAnswer as string}
+                        onChange={(e) => setCorrectAnswer(e.target.value)}
+                        placeholder="Primary identification"
+                        className={errors.correctAnswer ? 'border-red-500' : ''}
+                      />
+                      {errors.correctAnswer && <p className="text-sm text-red-500 mt-1">{errors.correctAnswer}</p>}
+                    </div>
+
+                    <div>
+                      <Label>Alternative Answers</Label>
+                      <div className="space-y-2">
+                        {acceptableAnswers.map((answer, index) => (
+                          <div key={index} className="flex gap-2">
+                            <Input
+                              value={answer}
+                              onChange={(e) => {
+                                const newAnswers = [...acceptableAnswers];
+                                newAnswers[index] = e.target.value;
+                                if (index === acceptableAnswers.length - 1 && e.target.value) {
+                                  newAnswers.push('');
+                                }
+                                setAcceptableAnswers(newAnswers);
+                              }}
+                              placeholder={`Alternative identification ${index + 1}`}
+                            />
+                            {index > 0 && (
+                              <Button
+                                variant="ghost"
+                                onClick={() => {
+                                  const newAnswers = acceptableAnswers.filter((_, i) => i !== index);
+                                  setAcceptableAnswers(newAnswers);
+                                }}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <Label htmlFor="explanation">Explanation</Label>
+                  <Textarea
+                    id="explanation"
+                    value={explanation}
+                    onChange={(e) => setExplanation(e.target.value)}
+                    placeholder="Explain the correct answer"
+                    className={errors.explanation ? 'border-red-500' : ''}
+                  />
+                  {errors.explanation && <p className="text-sm text-red-500 mt-1">{errors.explanation}</p>}
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  {currentQuestionIndex < questions.length ? (
+                    <>
+                      <Button variant="outline" onClick={resetQuestionForm}>
+                        Cancel
+                      </Button>
+                      <Button onClick={updateQuestion}>
+                        Update Question
+                      </Button>
+                    </>
+                  ) : (
+                    <Button onClick={addQuestion}>
+                      Add Question
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
           </div>
 
           <Card className="p-6 sticky top-6">
