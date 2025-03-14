@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Brain, Award, Clock, ChevronLeft, Play } from 'lucide-react';
+import { Brain, Award, Clock, ChevronLeft, Play, Edit, Trash } from 'lucide-react';
 
 interface Quiz {
   _id?: string;
@@ -26,62 +26,74 @@ interface Quiz {
 export default function QuizPage() {
   const router = useRouter();
   const params = useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const quizId = params.id as string;
+  const [isOwner, setIsOwner] = useState(false);
   
-  // Use the id from useParams hook
-  const quizId = Array.isArray(params.id) ? params.id[0] : params.id as string;
-
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login?callbackUrl=/quizzes/' + quizId);
+    const fetchQuiz = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const idToken = await user?.getIdToken(true);
+        const response = await fetch(`/api/quizzes/${quizId}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch quiz');
+        }
+
+        setQuiz(data.quiz);
+        // Check if the current user is the owner of the quiz
+        setIsOwner(data.quiz.createdBy === user?.uid || data.quiz.userFirebaseUid === user?.uid);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user && quizId) {
+      fetchQuiz();
+    }
+  }, [quizId, user]);
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this quiz? This action cannot be undone.')) {
       return;
     }
 
-    // Fetch quiz data once authenticated
-    if (!authLoading && user && quizId && quizId !== 'undefined') {
-      const fetchQuiz = async () => {
-        try {
-          console.log('Fetching quiz with ID:', quizId);
-          
-          // Get Firebase ID token for authentication
-          const idToken = await user.getIdToken(true);
-          
-          const response = await fetch(`/api/quizzes/${quizId}`, {
-            headers: {
-              'Authorization': `Bearer ${idToken}`
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch quiz (Status: ${response.status})`);
-          }
-          
-          const data = await response.json();
-          console.log('Quiz data:', data);
-          
-          setQuiz(data.quiz);
-        } catch (err) {
-          console.error('Error fetching quiz:', err);
-          setError(err instanceof Error ? err.message : 'Failed to fetch quiz');
-        } finally {
-          setLoading(false);
+    try {
+      const idToken = await user?.getIdToken(true);
+      const response = await fetch(`/api/quizzes/${quizId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
         }
-      };
-      
-      fetchQuiz();
-    } else if (quizId === 'undefined') {
-      setError('Invalid quiz ID');
-      setLoading(false);
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete quiz');
+      }
+
+      router.push('/quizzes/manage');
+    } catch (err) {
+      console.error('Error deleting quiz:', err);
+      alert('Failed to delete quiz. Please try again.');
     }
-  }, [quizId, router, user, authLoading]);
+  };
 
-  // Helper function to get the quiz ID, handling both id and _id properties
-  const getQuizId = (quiz: Quiz) => quiz?._id || quiz?.id;
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />
@@ -94,34 +106,14 @@ export default function QuizPage() {
     );
   }
 
-  if (error) {
+  if (error || !quiz) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />
         <div className="container mx-auto p-6">
           <div className="text-center py-10">
             <h3 className="text-xl font-medium mb-2">Error</h3>
-            <p className="text-muted-foreground mb-6">{error}</p>
-            <Link href="/quizzes">
-              <Button>
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                Back to Quizzes
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!quiz) {
-    return (
-      <div className="min-h-screen bg-background">
-        <MainNav />
-        <div className="container mx-auto p-6">
-          <div className="text-center py-10">
-            <h3 className="text-xl font-medium mb-2">Quiz Not Found</h3>
-            <p className="text-muted-foreground mb-6">The quiz you're looking for doesn't exist or you don't have permission to view it.</p>
+            <p className="text-muted-foreground mb-6">{error || 'Quiz not found'}</p>
             <Link href="/quizzes">
               <Button>
                 <ChevronLeft className="mr-2 h-4 w-4" />
@@ -138,13 +130,27 @@ export default function QuizPage() {
     <div className="min-h-screen bg-background">
       <MainNav />
       <div className="container mx-auto p-6">
-        <div className="mb-6">
+        <div className="mb-6 flex justify-between items-center">
           <Link href="/quizzes">
             <Button variant="outline">
               <ChevronLeft className="mr-2 h-4 w-4" />
               Back to Quizzes
             </Button>
           </Link>
+          {isOwner && (
+            <div className="flex gap-2">
+              <Link href={`/quizzes/edit/${quizId}`}>
+                <Button variant="outline">
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Quiz
+                </Button>
+              </Link>
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash className="mr-2 h-4 w-4" />
+                Delete Quiz
+              </Button>
+            </div>
+          )}
         </div>
         
         <motion.div
