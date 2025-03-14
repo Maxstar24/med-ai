@@ -128,7 +128,7 @@ export async function PATCH(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request?.headers?.get('authorization') || '';
+    const authHeader = request.headers.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -177,7 +177,7 @@ export async function PATCH(
     // Get the updated quiz data from the request body
     let data = {};
     try {
-      data = await request?.json();
+      data = await request.json();
     } catch (e) {
       console.error('Error parsing request body:', e);
       return NextResponse.json(
@@ -235,7 +235,7 @@ export async function DELETE(
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request?.headers?.get('authorization') || '';
+    const authHeader = request.headers.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
