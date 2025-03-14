@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { connectToDatabase } from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
 import User from '@/models/User';
@@ -8,12 +9,24 @@ import { DecodedIdToken } from 'firebase-admin/auth';
 
 // GET: Fetch a specific quiz by ID
 export async function GET(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     console.log('Starting GET request for quiz');
-    console.log('Request headers:', Object.fromEntries(request.headers.entries()));
+    
+    // Defensive check for request object
+    if (!req || !req.headers) {
+      console.error('Request or headers object is undefined');
+      return NextResponse.json(
+        { error: 'Invalid request' },
+        { status: 400 }
+      );
+    }
+    
+    // Get authorization header
+    const authHeader = req.headers.get('authorization') || '';
+    console.log('Auth header length:', authHeader.length);
     
     // Connect to the database
     console.log('Connecting to database...');
@@ -22,8 +35,6 @@ export async function GET(
     
     // Verify Firebase token
     console.log('Verifying Firebase token...');
-    const authHeader = request.headers.get('authorization') || '';
-    console.log('Auth header length:', authHeader.length);
     const decodedToken = await verifyFirebaseToken(authHeader);
     console.log('Token verification result:', decodedToken ? 'success' : 'failed');
     
@@ -120,15 +131,24 @@ export async function GET(
 
 // PATCH: Update a specific quiz by ID
 export async function PATCH(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Defensive check for request object
+    if (!req || !req.headers) {
+      console.error('Request or headers object is undefined');
+      return NextResponse.json(
+        { error: 'Invalid request' },
+        { status: 400 }
+      );
+    }
+    
     // Connect to the database
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization') || '';
+    const authHeader = req.headers.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
@@ -177,7 +197,7 @@ export async function PATCH(
     // Get the updated quiz data from the request body
     let data = {};
     try {
-      data = await request.json();
+      data = await req.json();
     } catch (e) {
       console.error('Error parsing request body:', e);
       return NextResponse.json(
@@ -227,15 +247,24 @@ export async function PATCH(
 
 // DELETE: Delete a specific quiz by ID
 export async function DELETE(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Defensive check for request object
+    if (!req || !req.headers) {
+      console.error('Request or headers object is undefined');
+      return NextResponse.json(
+        { error: 'Invalid request' },
+        { status: 400 }
+      );
+    }
+    
     // Connect to the database
     await connectToDatabase();
     
     // Verify Firebase token
-    const authHeader = request.headers.get('authorization') || '';
+    const authHeader = req.headers.get('authorization') || '';
     const decodedToken = await verifyFirebaseToken(authHeader);
     
     if (!decodedToken) {
