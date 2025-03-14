@@ -139,7 +139,7 @@ export default function QuizPage() {
           </Link>
           {isOwner && (
             <div className="flex gap-2">
-              <Link href={`/quizzes/edit/${quizId}`}>
+              <Link href={`/quizzes/edit/${quiz._id || quiz.id}`}>
                 <Button variant="outline">
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Quiz
