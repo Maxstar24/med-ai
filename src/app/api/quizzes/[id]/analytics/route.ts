@@ -4,9 +4,35 @@ import QuizResult from '@/models/QuizResult';
 import Quiz from '@/models/Quiz';
 import mongoose from 'mongoose';
 import { getAuth } from 'firebase-admin/auth';
+import { NextRequest } from 'next/server';
+
+interface AnalyticsContext {
+  params: {
+    id: string;
+  };
+}
+
+interface QuestionStat {
+  questionId: string;
+  successRate: number;
+  averageTimeSpent: number;
+  skipRate: number;
+}
+
+interface UserPerformance {
+  percentile: number;
+  rank: string;
+  fastestTime: boolean;
+  highestAccuracy: boolean;
+}
+
+interface AccuracyTrendPoint {
+  date: string;
+  score: number;
+}
 
 // Helper function to verify Firebase token
-async function verifyFirebaseToken(authHeader) {
+async function verifyFirebaseToken(authHeader: string | null) {
   try {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return null;
@@ -24,7 +50,7 @@ async function verifyFirebaseToken(authHeader) {
 }
 
 // GET: Fetch analytics for a specific quiz
-export async function GET(req, context) {
+export async function GET(req: NextRequest, context: AnalyticsContext) {
   const { params } = context;
   const quizId = params.id;
   
@@ -83,15 +109,15 @@ export async function GET(req, context) {
     const averageTimeSpent = timeSpents.reduce((sum, time) => sum + time, 0) / timeSpents.length;
     
     // Calculate question-specific stats
-    const questionStats = [];
+    const questionStats: QuestionStat[] = [];
     
     // Get all unique question IDs from the quiz
-    const questionIds = quiz.questions.map(q => q._id.toString());
+    const questionIds = quiz.questions.map((q: any) => q._id.toString());
     
     // For each question, calculate success rate, average time, and skip rate
     for (const questionId of questionIds) {
       const questionAttempts = allAttempts.flatMap(attempt => 
-        attempt.answers.filter(answer => answer.questionId.toString() === questionId)
+        attempt.answers.filter((answer: any) => answer.questionId.toString() === questionId)
       );
       
       if (questionAttempts.length === 0) {
@@ -127,8 +153,8 @@ export async function GET(req, context) {
     const userAttempts = allAttempts.filter(attempt => attempt.userId === userId);
     
     // Calculate user performance metrics
-    let userPerformance = null;
-    let accuracyTrend = [];
+    let userPerformance: UserPerformance | null = null;
+    let accuracyTrend: AccuracyTrendPoint[] = [];
     
     if (userAttempts.length > 0) {
       // Get the user's most recent attempt
