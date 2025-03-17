@@ -6,6 +6,9 @@ if (!process.env.MONGODB_URI) {
 
 const uri = process.env.MONGODB_URI;
 
+// Set strictQuery to false to prevent Mongoose from trying to cast query values
+mongoose.set('strictQuery', false);
+
 interface GlobalWithMongoose extends globalThis.Global {
   mongoose: {
     conn: typeof mongoose | null;

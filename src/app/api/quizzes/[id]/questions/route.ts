@@ -41,10 +41,8 @@ async function verifyFirebaseToken(authHeader: string | null): Promise<DecodedId
 }
 
 // GET: Fetch questions for a specific quiz
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req, context) {
+  const { params } = context;
   try {
     // Connect to the database
     await connectToDatabase();
@@ -95,10 +93,8 @@ export async function GET(
 }
 
 // POST: Add a new question to a quiz
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req, context) {
+  const { params } = context;
   try {
     // Connect to the database
     await connectToDatabase();
@@ -174,10 +170,8 @@ export async function POST(
 }
 
 // PATCH: Update a question in a quiz
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req, context) {
+  const { params } = context;
   try {
     // Connect to the database
     await connectToDatabase();
@@ -276,10 +270,8 @@ export async function PATCH(
 }
 
 // DELETE: Remove a question from a quiz
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req, context) {
+  const { params } = context;
   try {
     // Connect to the database
     await connectToDatabase();

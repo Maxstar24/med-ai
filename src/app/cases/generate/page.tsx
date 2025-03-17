@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Markdown from '@/components/Markdown';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { Sparkles, ArrowRight, ArrowLeft, Check, Loader2, Upload, FileText, Image as ImageIcon, Link as LinkIcon, History } from 'lucide-react';
 
 const GenerateCasePage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -14,6 +14,8 @@ const GenerateCasePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [generatedCase, setGeneratedCase] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
   const [specialty, setSpecialty] = useState('');
@@ -21,6 +23,10 @@ const GenerateCasePage = () => {
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [includeImages, setIncludeImages] = useState(false);
   const [numQuestions, setNumQuestions] = useState(3);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedPdf, setSelectedPdf] = useState<File | null>(null);
+  const [includeHistory, setIncludeHistory] = useState(false);
+  const [previousPrompts, setPreviousPrompts] = useState('');
   
   // Redirect if not logged in
   useEffect(() => {
@@ -36,6 +42,20 @@ const GenerateCasePage = () => {
       return () => clearTimeout(redirectTimer);
     }
   }, [user, authLoading, router]);
+  
+  // Handle image selection
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedImage(e.target.files[0]);
+    }
+  };
+  
+  // Handle PDF selection
+  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedPdf(e.target.files[0]);
+    }
+  };
   
   // Handle form submission to generate a case
   const handleGenerate = async (e: React.FormEvent) => {
@@ -74,29 +94,45 @@ const GenerateCasePage = () => {
         return;
       }
       
+      // Create FormData for file uploads
+      const formData = new FormData();
+      formData.append('specialty', specialty);
+      formData.append('difficulty', difficulty);
+      formData.append('additionalInstructions', additionalInstructions);
+      formData.append('includeImages', includeImages.toString());
+      formData.append('numQuestions', numQuestions.toString());
+      formData.append('includeHistory', includeHistory.toString());
+      formData.append('previousPrompts', previousPrompts);
+      
+      // Add files if selected
+      if (selectedImage) {
+        formData.append('image', selectedImage);
+      }
+      
+      if (selectedPdf) {
+        formData.append('pdf', selectedPdf);
+      }
+      
       console.log('Sending generation request to API...');
       console.log('Request data:', {
         specialty,
         difficulty,
         additionalInstructions: additionalInstructions?.substring(0, 50) || 'none',
         includeImages,
-        numQuestions
+        numQuestions,
+        hasImage: !!selectedImage,
+        hasPdf: !!selectedPdf,
+        includeHistory,
+        previousPromptsLength: previousPrompts?.length || 0
       });
       
       // Include the token in the request
       const response = await fetch('/api/ai/generate-case', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({
-          specialty,
-          difficulty,
-          additionalInstructions,
-          includeImages,
-          numQuestions,
-        }),
+        body: formData,
       });
       
       console.log('Response status:', response.status);
@@ -386,17 +422,118 @@ const GenerateCasePage = () => {
                 </p>
               </div>
               
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="includeImages"
-                  checked={includeImages}
-                  onChange={(e) => setIncludeImages(e.target.checked)}
-                  className="mr-2 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <label htmlFor="includeImages" className="font-medium">
-                  Include relevant images (if available)
-                </label>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block mb-2 font-medium">Upload Medical Image (Optional)</label>
+                  <div 
+                    className="border-2 border-dashed border-input rounded-md p-4 text-center cursor-pointer hover:bg-secondary/20 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      onChange={handleImageChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {selectedImage ? selectedImage.name : "Click to upload an image"}
+                    </p>
+                    {selectedImage && (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedImage(null);
+                        }}
+                        className="mt-2 text-xs text-destructive hover:underline"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload a medical image for AI analysis
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block mb-2 font-medium">Upload Medical PDF (Optional)</label>
+                  <div 
+                    className="border-2 border-dashed border-input rounded-md p-4 text-center cursor-pointer hover:bg-secondary/20 transition-colors"
+                    onClick={() => pdfInputRef.current?.click()}
+                  >
+                    <input 
+                      type="file" 
+                      ref={pdfInputRef}
+                      onChange={handlePdfChange}
+                      accept=".pdf"
+                      className="hidden"
+                    />
+                    <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {selectedPdf ? selectedPdf.name : "Click to upload a PDF"}
+                    </p>
+                    {selectedPdf && (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPdf(null);
+                        }}
+                        className="mt-2 text-xs text-destructive hover:underline"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload a medical document for AI analysis
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="includeImages"
+                    checked={includeImages}
+                    onChange={(e) => setIncludeImages(e.target.checked)}
+                    className="mr-2 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <label htmlFor="includeImages" className="font-medium">
+                    Include relevant images (if available)
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="includeHistory"
+                    checked={includeHistory}
+                    onChange={(e) => setIncludeHistory(e.target.checked)}
+                    className="mr-2 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <label htmlFor="includeHistory" className="font-medium">
+                    Include previous context
+                  </label>
+                </div>
+                
+                {includeHistory && (
+                  <div>
+                    <textarea
+                      value={previousPrompts}
+                      onChange={(e) => setPreviousPrompts(e.target.value)}
+                      className="w-full p-3 border border-input rounded-md bg-background min-h-[100px] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="Enter previous context or prompts here..."
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Previous context helps the AI maintain continuity with past interactions
+                    </p>
+                  </div>
+                )}
               </div>
               
               <div className="flex justify-end space-x-4 pt-4 border-t border-border">
@@ -459,7 +596,32 @@ const GenerateCasePage = () => {
                   }`}>
                     {generatedCase.difficulty}
                   </span>
+                  {generatedCase.generatedWith && (
+                    <span className="px-2 py-1 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded-md text-sm">
+                      {generatedCase.generatedWith}
+                    </span>
+                  )}
                 </div>
+                
+                {generatedCase.mediaAnalysis && (
+                  <div className="mt-4 p-3 bg-secondary/20 rounded-md text-sm">
+                    <p className="font-medium">Media Analysis:</p>
+                    <ul className="mt-1 space-y-1">
+                      {generatedCase.mediaAnalysis.imageAnalyzed && (
+                        <li className="flex items-center">
+                          <ImageIcon className="h-4 w-4 mr-2 text-primary" />
+                          Analyzed image: {generatedCase.mediaAnalysis.imageFilename}
+                        </li>
+                      )}
+                      {generatedCase.mediaAnalysis.pdfAnalyzed && (
+                        <li className="flex items-center">
+                          <FileText className="h-4 w-4 mr-2 text-primary" />
+                          Analyzed document: {generatedCase.mediaAnalysis.pdfFilename}
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
               </div>
               
               <div className="p-6">
@@ -485,6 +647,32 @@ const GenerateCasePage = () => {
                     </div>
                   ))}
                 </div>
+                
+                {generatedCase.references && generatedCase.references.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-border">
+                    <h3 className="text-xl font-semibold mb-4 flex items-center">
+                      <LinkIcon className="h-5 w-5 mr-2 text-primary" />
+                      References & Further Reading
+                    </h3>
+                    <div className="space-y-3">
+                      {generatedCase.references.map((ref: any, index: number) => (
+                        <div key={index} className="p-3 bg-secondary/10 rounded-md">
+                          <a 
+                            href={ref.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="font-medium hover:text-primary transition-colors"
+                          >
+                            {ref.title}
+                          </a>
+                          {ref.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{ref.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             

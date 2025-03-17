@@ -159,13 +159,28 @@ export default function DashboardPage() {
                 <Button className="w-full">View History</Button>
               </Card>
             </Link>
+
+            <Link href="/flashcards" className="block">
+              <Card className="p-6 hover:shadow-lg transition-shadow h-full">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-primary/10 rounded-full">
+                    <Book className="w-6 h-6 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-semibold">Flashcards</h2>
+                </div>
+                <p className="text-muted-foreground mb-4">
+                  Create and study flashcards with manual entry, AI generation, or PDF import.
+                </p>
+                <Button className="w-full">Study Flashcards</Button>
+              </Card>
+            </Link>
           </div>
 
           <Card className="p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold">Quick Actions</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Button className="w-full">
                 <Plus className="mr-2 h-4 w-4" /> Start New Quiz
               </Button>
@@ -175,6 +190,11 @@ export default function DashboardPage() {
               <Button className="w-full" variant="outline">
                 <Video className="mr-2 h-4 w-4" /> Watch Review
               </Button>
+              <Link href="/flashcards/create" className="w-full">
+                <Button className="w-full" variant="outline">
+                  <Plus className="mr-2 h-4 w-4" /> Create Flashcards
+                </Button>
+              </Link>
             </div>
           </Card>
         </motion.div>

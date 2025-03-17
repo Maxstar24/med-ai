@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
   try {
     let message: string;
     let streaming = false;
+    let imageFile: File | null = null;
+    let pdfFile: File | null = null;
     const contentType = req.headers.get('content-type');
     
     // Handle different request formats (JSON or FormData)
@@ -21,7 +23,53 @@ export async function POST(req: NextRequest) {
       console.log('Form data received');
       message = formData.get('prompt')?.toString() || formData.get('message')?.toString() || '';
       streaming = formData.get('stream') === 'true';
-      // You can also handle file uploads here if needed
+      
+      // Handle file uploads
+      imageFile = formData.get('image') as File | null;
+      pdfFile = formData.get('pdf') as File | null;
+      
+      // Validate image file if present
+      if (imageFile) {
+        console.log('Image file received:', imageFile.name, imageFile.type, `${Math.round(imageFile.size / 1024)}KB`);
+        
+        // Check supported image types
+        const supportedImageTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+        if (!supportedImageTypes.includes(imageFile.type)) {
+          return NextResponse.json(
+            { text: '', error: `Unsupported image format: ${imageFile.type}. Please use JPG or PNG images.` },
+            { status: 400 }
+          );
+        }
+        
+        // Check file size (limit to 5MB)
+        if (imageFile.size > 5 * 1024 * 1024) {
+          return NextResponse.json(
+            { text: '', error: 'Image file is too large. Please use an image smaller than 5MB.' },
+            { status: 400 }
+          );
+        }
+      }
+      
+      // Validate PDF file if present
+      if (pdfFile) {
+        console.log('PDF file received:', pdfFile.name, pdfFile.type, `${Math.round(pdfFile.size / 1024)}KB`);
+        
+        // Check file type
+        if (pdfFile.type !== 'application/pdf') {
+          return NextResponse.json(
+            { text: '', error: 'Please upload a valid PDF file.' },
+            { status: 400 }
+          );
+        }
+        
+        // Check file size (limit to 10MB)
+        if (pdfFile.size > 10 * 1024 * 1024) {
+          return NextResponse.json(
+            { text: '', error: 'PDF file is too large. Please use a PDF smaller than 10MB.' },
+            { status: 400 }
+          );
+        }
+      }
     } else {
       return NextResponse.json(
         { text: '', error: 'Unsupported content type' },
@@ -29,11 +77,16 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    console.log('Received request:', { message, streaming });
+    console.log('Received request:', { 
+      message, 
+      streaming, 
+      hasImage: !!imageFile, 
+      hasPdf: !!pdfFile 
+    });
 
-    if (!message) {
+    if (!message && !imageFile && !pdfFile) {
       return NextResponse.json(
-        { text: 'Please provide a prompt for the AI to respond to.' },
+        { text: 'Please provide a prompt or upload a file for the AI to respond to.' },
         { status: 400 }
       );
     }
@@ -42,7 +95,7 @@ export async function POST(req: NextRequest) {
     if (streaming) {
       try {
         console.log('Starting streaming response...');
-        const streamResult = await streamMedicalResponse(message);
+        const streamResult = await streamMedicalResponse(message, imageFile, pdfFile);
         console.log('Stream result received');
         
         // Use a TransformStream for more reliable streaming
@@ -66,6 +119,24 @@ export async function POST(req: NextRequest) {
             }
           } catch (error) {
             console.error('Error processing stream chunks:', error);
+            // Try to write error message to the stream
+            try {
+              const errorMessage = error instanceof Error ? 
+                error.message : 
+                'An error occurred during streaming';
+              
+              // Format user-friendly error message
+              let userMessage = errorMessage;
+              if (errorMessage.includes('Unsupported MIME type') || errorMessage.includes('Unsupported file type')) {
+                userMessage = 'The file format you uploaded is not supported. Please use JPG or PNG for images, or PDF for documents.';
+              } else if (errorMessage.includes('Candidate was blocked due to SAFETY')) {
+                userMessage = 'The AI could not process this request due to safety guidelines. Please try a different query or image.';
+              }
+              
+              await writer.write(`\n\nError: ${userMessage}`);
+            } catch (writeError) {
+              console.error('Error writing error message to stream:', writeError);
+            }
           } finally {
             writer.close();
           }
@@ -81,18 +152,49 @@ export async function POST(req: NextRequest) {
         });
       } catch (error) {
         console.error('Error in streaming response:', error);
+        
+        // Format user-friendly error message
+        let errorMessage = error instanceof Error ? 
+          error.message : 
+          'An error occurred during streaming';
+        
+        if (errorMessage.includes('Unsupported MIME type') || errorMessage.includes('Unsupported file type')) {
+          errorMessage = 'The file format you uploaded is not supported. Please use JPG or PNG for images, or PDF for documents.';
+        } else if (errorMessage.includes('Candidate was blocked due to SAFETY')) {
+          errorMessage = 'The AI could not process this request due to safety guidelines. Please try a different query or image.';
+        }
+        
         return NextResponse.json(
-          { text: '', error: error instanceof Error ? error.message : 'An error occurred during streaming' },
+          { text: '', error: errorMessage },
           { status: 500 }
         );
       }
     }
     
     // Non-streaming response (original behavior)
-    const response = await generateMedicalResponse(message);
-    console.log('AI response generated successfully');
-    
-    return NextResponse.json(response);
+    try {
+      const response = await generateMedicalResponse(message, imageFile, pdfFile);
+      console.log('AI response generated successfully');
+      return NextResponse.json(response);
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      
+      // Format user-friendly error message
+      let errorMessage = error instanceof Error ? 
+        error.message : 
+        'An unknown error occurred';
+      
+      if (errorMessage.includes('Unsupported MIME type') || errorMessage.includes('Unsupported file type')) {
+        errorMessage = 'The file format you uploaded is not supported. Please use JPG or PNG for images, or PDF for documents.';
+      } else if (errorMessage.includes('Candidate was blocked due to SAFETY')) {
+        errorMessage = 'The AI could not process this request due to safety guidelines. Please try a different query or image.';
+      }
+      
+      return NextResponse.json(
+        { text: '', error: errorMessage },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Error in AI route:', error);
     return NextResponse.json(

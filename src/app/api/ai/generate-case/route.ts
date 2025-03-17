@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Part } from '@google/generative-ai';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin if not already initialized
@@ -87,7 +87,16 @@ export async function POST(req: NextRequest) {
         );
       }
       
-      const { specialty, difficulty, additionalInstructions, includeImages, numQuestions } = await req.json();
+      const formData = await req.formData();
+      const specialty = formData.get('specialty') as string;
+      const difficulty = formData.get('difficulty') as string;
+      const additionalInstructions = formData.get('additionalInstructions') as string;
+      const includeImages = formData.get('includeImages') === 'true';
+      const numQuestions = parseInt(formData.get('numQuestions') as string, 10);
+      const imageFile = formData.get('image') as File | null;
+      const pdfFile = formData.get('pdf') as File | null;
+      const includeHistory = formData.get('includeHistory') === 'true';
+      const previousPrompts = formData.get('previousPrompts') as string;
       
       if (!specialty) {
         return NextResponse.json(
@@ -102,7 +111,11 @@ export async function POST(req: NextRequest) {
         difficulty,
         additionalInstructions,
         includeImages,
-        numQuestions
+        numQuestions,
+        imageFile,
+        pdfFile,
+        includeHistory,
+        previousPrompts
       );
       
       return NextResponse.json(generatedCase);
@@ -122,19 +135,79 @@ export async function POST(req: NextRequest) {
   }
 }
 
+async function fileToGenerativePart(file: File): Promise<Part> {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  
+  // Determine MIME type based on file extension
+  const fileType = file.name.split('.').pop()?.toLowerCase();
+  let mimeType = file.type;
+  
+  if (!mimeType) {
+    // Fallback MIME types if not provided
+    if (fileType === 'pdf') {
+      mimeType = 'application/pdf';
+    } else if (['jpg', 'jpeg', 'png'].includes(fileType || '')) {
+      mimeType = `image/${fileType}`;
+    }
+  }
+  
+  return {
+    inlineData: {
+      data: buffer.toString('base64'),
+      mimeType: mimeType
+    }
+  } as Part;
+}
+
 async function generateMedicalCase(
   specialty: string,
   difficulty: string,
   additionalInstructions: string,
   includeImages: boolean,
-  numQuestions: number
+  numQuestions: number,
+  imageFile: File | null,
+  pdfFile: File | null,
+  includeHistory: boolean,
+  previousPrompts: string
 ) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    // Using the newer model
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.0-pro-exp-02-05",
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 8192,
+      }
+    });
     
     // Create a detailed prompt for the AI
-    const prompt = `
-      Create a detailed medical case study for educational purposes in the field of ${specialty}.
+    const basePrompt = `
+      Create a detailed medical case study for educational purposes in the field of ${specialty} for healthcare professionals and medical students.
       
       The case should be at ${difficulty} difficulty level and include:
       
@@ -142,6 +215,7 @@ async function generateMedicalCase(
       2. A brief description (1-2 sentences)
       3. Detailed case content with patient history, symptoms, examination findings, and relevant test results
       4. ${numQuestions} questions about the case with answers and explanations
+      5. At least 3-5 relevant external links to medical resources, journals, or educational websites where users can learn more about this condition
       
       Additional requirements:
       ${additionalInstructions ? `- ${additionalInstructions}` : ''}
@@ -162,13 +236,51 @@ async function generateMedicalCase(
             "answer": "Answer 1",
             "explanation": "Explanation 1"
           }
+        ],
+        "references": [
+          {
+            "title": "Reference Title",
+            "url": "https://example.com/reference",
+            "description": "Brief description of what this reference contains"
+          }
         ]
       }
       
       Make sure the content is medically accurate, educational, and formatted in proper markdown including headers, lists, and tables where appropriate.
+      This is for educational purposes in a medical context only.
     `;
     
-    const result = await model.generateContent(prompt);
+    // Add history context if requested
+    const historyContext = includeHistory && previousPrompts ? 
+      `Previous context: ${previousPrompts}\n\nPlease consider the above history when generating this case.` : '';
+    
+    const finalPrompt = historyContext ? `${historyContext}\n\n${basePrompt}` : basePrompt;
+    
+    let result;
+    
+    // Handle different content types
+    if (imageFile || pdfFile) {
+      const parts: Part[] = [{ text: finalPrompt }];
+      
+      // Add image if provided
+      if (imageFile) {
+        const imagePart = await fileToGenerativePart(imageFile);
+        parts.push(imagePart);
+        parts.push({ text: "Please analyze this medical image and incorporate relevant findings into the case study." });
+      }
+      
+      // Add PDF if provided
+      if (pdfFile) {
+        const pdfPart = await fileToGenerativePart(pdfFile);
+        parts.push(pdfPart);
+        parts.push({ text: "Please analyze this medical document and incorporate relevant information into the case study." });
+      }
+      
+      result = await model.generateContent(parts);
+    } else {
+      result = await model.generateContent(finalPrompt);
+    }
+    
     const responseText = result.response.text();
     
     // Extract the JSON from the response
@@ -206,6 +318,21 @@ async function generateMedicalCase(
     if (!caseData.tags) caseData.tags = [];
     if (!caseData.specialties) caseData.specialties = [specialty];
     if (!caseData.mediaUrls) caseData.mediaUrls = [];
+    if (!caseData.references) caseData.references = [];
+    
+    // Add metadata about the generation
+    caseData.generatedWith = "gemini-2.0-pro-exp-02-05";
+    caseData.generatedAt = new Date().toISOString();
+    
+    // If image or PDF was analyzed, add a note about it
+    if (imageFile || pdfFile) {
+      caseData.mediaAnalysis = {
+        imageAnalyzed: !!imageFile,
+        pdfAnalyzed: !!pdfFile,
+        imageFilename: imageFile?.name || null,
+        pdfFilename: pdfFile?.name || null
+      };
+    }
     
     return caseData;
   } catch (error) {

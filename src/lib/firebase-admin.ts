@@ -3,25 +3,33 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin if it hasn't been initialized
-if (!getApps().length) {
-  try {
-    const serviceAccount = JSON.parse(
-      process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}'
-    );
-    
-    if (!serviceAccount.project_id) {
-      console.error('Invalid Firebase service account key. Please check your environment variables.');
+export function initializeFirebaseAdmin() {
+  if (!getApps().length) {
+    try {
+      const serviceAccount = JSON.parse(
+        process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}'
+      );
+      
+      if (!serviceAccount.project_id) {
+        console.error('Invalid Firebase service account key. Please check your environment variables.');
+      }
+      
+      initializeApp({
+        credential: cert(serviceAccount),
+        databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+      });
+      
+      console.log('Firebase Admin initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Firebase Admin:', error);
     }
-    
-    initializeApp({
-      credential: cert(serviceAccount),
-      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-    });
-    
-    console.log('Firebase Admin initialized successfully');
-  } catch (error) {
-    console.error('Error initializing Firebase Admin:', error);
   }
+  return getApps()[0];
+}
+
+// Initialize by default
+if (!getApps().length) {
+  initializeFirebaseAdmin();
 }
 
 export const auth = getAuth();

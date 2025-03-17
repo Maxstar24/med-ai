@@ -8,23 +8,12 @@ import { verifyFirebaseToken } from '@/lib/firebase-admin';
 import { DecodedIdToken } from 'firebase-admin/auth';
 
 // GET: Fetch a specific quiz by ID
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req, context) {
+  const { params } = context;
   try {
     console.log('Starting GET request for quiz');
     
-    // Defensive check for request object
-    if (!req || !req.headers) {
-      console.error('Request or headers object is undefined');
-      return NextResponse.json(
-        { error: 'Invalid request' },
-        { status: 400 }
-      );
-    }
-    
-    // Get authorization header
+    // Log the auth header length for debugging
     const authHeader = req.headers.get('authorization') || '';
     console.log('Auth header length:', authHeader.length);
     
@@ -36,10 +25,9 @@ export async function GET(
     // Verify Firebase token
     console.log('Verifying Firebase token...');
     const decodedToken = await verifyFirebaseToken(authHeader);
-    console.log('Token verification result:', decodedToken ? 'success' : 'failed');
+    console.log('Token verification result:', decodedToken ? 'success' : 'failure');
     
     if (!decodedToken) {
-      console.log('Token verification failed - returning 401');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -52,7 +40,6 @@ export async function GET(
     console.log('Quiz ID:', id);
     
     if (!id || id === 'undefined') {
-      console.log('Invalid quiz ID - returning 400');
       return NextResponse.json(
         { error: 'Invalid quiz ID' },
         { status: 400 }
@@ -65,63 +52,39 @@ export async function GET(
     console.log('Quiz found:', quiz ? 'yes' : 'no');
     
     if (!quiz) {
-      console.log('Quiz not found - returning 404');
       return NextResponse.json(
         { error: 'Quiz not found' },
         { status: 404 }
       );
     }
     
-    // Find the user by Firebase UID
+    // Check if the user has permission to access this quiz
     console.log('Finding user with Firebase UID:', decodedToken.uid);
     const user = await User.findOne({ firebaseUid: decodedToken.uid });
-    if (!user) {
-      console.error('User not found in database:', decodedToken.uid);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-    console.log('User found:', user._id);
+    console.log('User found:', user ? user._id : 'no');
     
-    // Check if user has permission to view this quiz
     console.log('Checking quiz permissions...');
-    console.log('Quiz public:', quiz.isPublic);
-    console.log('Quiz createdBy:', quiz.createdBy.toString());
-    console.log('User _id:', user._id.toString());
+    console.log('Quiz public:', quiz.public);
+    console.log('Quiz createdBy:', quiz.createdBy);
+    console.log('User _id:', user?._id);
     console.log('Quiz userFirebaseUid:', quiz.userFirebaseUid);
-    console.log('User firebaseUid:', decodedToken.uid);
+    console.log('User firebaseUid:', user?.firebaseUid);
     
-    if (!quiz.isPublic && 
-        quiz.createdBy.toString() !== user._id.toString() && 
-        quiz.userFirebaseUid !== decodedToken.uid) {
-      console.log('Access denied - returning 403');
+    // Allow access if the quiz is public or if the user created it
+    if (!quiz.public && 
+        (!user || 
+         (quiz.createdBy && quiz.createdBy.toString() !== user._id.toString() && 
+          quiz.userFirebaseUid !== user.firebaseUid))) {
       return NextResponse.json(
-        { error: 'You do not have permission to view this quiz' },
+        { error: 'Unauthorized to access this quiz' },
         { status: 403 }
       );
     }
     
     console.log('Access granted - returning quiz');
     return NextResponse.json({ quiz });
-  } catch (error: unknown) {
-    // Enhanced error logging
-    console.error('Detailed error in quiz fetch:');
-    if (error instanceof Error) {
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      return NextResponse.json(
-        { 
-          error: 'Failed to fetch quiz',
-          details: {
-            name: error.name,
-            message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-          }
-        },
-        { status: 500 }
-      );
-    }
-    // If it's not an Error instance, just log what we can
-    console.error('Unknown error:', error);
+  } catch (error) {
+    console.error('Error fetching quiz:', error);
     return NextResponse.json(
       { error: 'Failed to fetch quiz' },
       { status: 500 }
@@ -130,10 +93,8 @@ export async function GET(
 }
 
 // PATCH: Update a specific quiz by ID
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req, context) {
+  const { params } = context;
   try {
     // Defensive check for request object
     if (!req || !req.headers) {
@@ -246,10 +207,8 @@ export async function PATCH(
 }
 
 // DELETE: Delete a specific quiz by ID
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req, context) {
+  const { params } = context;
   try {
     // Defensive check for request object
     if (!req || !req.headers) {

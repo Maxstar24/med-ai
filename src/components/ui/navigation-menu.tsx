@@ -248,6 +248,14 @@ export function MainNav() {
             </NavigationMenuItem>
 
             <NavigationMenuItem>
+              <Link href="/flashcards" legacyBehavior passHref>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                  Flashcards
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+
+            <NavigationMenuItem>
               <Link href="/quizzes/history" legacyBehavior passHref>
                 <NavigationMenuLink className={navigationMenuTriggerStyle()}>
                   Quiz History

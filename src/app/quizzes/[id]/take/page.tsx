@@ -1,37 +1,48 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { MainNav } from '@/components/ui/navigation-menu';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Checkbox } from '@/components/ui/checkbox';
-import { motion } from 'framer-motion';
-import Link from 'next/link';
-import { ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Check, Clock, Brain, Award } from 'lucide-react';
+import Link from 'next/link';
 
-interface Question {
-  _id: string;
-  text: string;
-  type: string;
-  options: {
-    _id: string;
-    text: string;
-    isCorrect: boolean;
-  }[];
+interface BaseQuestion {
+  id: string;
+  question: string;
   explanation: string;
-  correctAnswer: string | string[];
-  formattedOptions?: {
-    _id: string;
-    text: string;
-    isCorrect: boolean;
-  }[];
   imageUrl?: string;
 }
+
+interface MultipleChoiceQuestion extends BaseQuestion {
+  type: 'multiple-choice';
+  options: string[];
+  correctAnswer: string;
+}
+
+interface TrueFalseQuestion extends BaseQuestion {
+  type: 'true-false';
+  correctAnswer: string;
+}
+
+interface SingleAnswerQuestion extends BaseQuestion {
+  type: 'saq' | 'spot';
+  correctAnswer: string;
+}
+
+interface MultiAnswerQuestion extends BaseQuestion {
+  type: 'saq' | 'spot';
+  correctAnswer: string[];
+}
+
+type ShortAnswerQuestion = SingleAnswerQuestion | MultiAnswerQuestion;
+type SpotQuestion = SingleAnswerQuestion | MultiAnswerQuestion;
+type Question = MultipleChoiceQuestion | TrueFalseQuestion | ShortAnswerQuestion | SpotQuestion;
 
 interface Quiz {
   _id?: string;
@@ -39,12 +50,60 @@ interface Quiz {
   title: string;
   description: string;
   questions: Question[];
+  difficulty: string;
+  topic: string;
+}
+
+interface QuizAttempt {
+  _id: string;
+  startedAt: Date;
+  completedAt?: Date;
+  score: number;
+  totalQuestions: number;
+  questionsAttempted: number;
+  answers: {
+    questionId: string;
+    selectedAnswer: string | string[];
+    isCorrect: boolean;
+    timeSpent: number;
+  }[];
+}
+
+interface QuizAnalytics {
+  totalAttempts: number;
+  completionRate: number;
+  averageScore: number;
+  averageTimeSpent: number;
+  questionStats: {
+    questionId: string;
+    successRate: number;
+    averageTimeSpent: number;
+    skipRate: number;
+  }[];
+}
+
+function isString(value: string | string[]): value is string {
+  return !Array.isArray(value);
+}
+
+function isMultiAnswerQuestion(question: any): question is MultiAnswerQuestion {
+  return Array.isArray(question.correctAnswer);
+}
+
+// Helper function to compare answers safely
+function compareAnswers(correctAnswer: string | string[], userAnswer: string): boolean {
+  if (Array.isArray(correctAnswer)) {
+    return correctAnswer.some(answer => 
+      answer.toLowerCase() === userAnswer.toLowerCase()
+    );
+  }
+  return correctAnswer.toLowerCase() === userAnswer.toLowerCase();
 }
 
 export default function TakeQuizPage() {
   const router = useRouter();
   const params = useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -52,180 +111,178 @@ export default function TakeQuizPage() {
   const [shortAnswers, setShortAnswers] = useState<Record<string, string>>({});
   const [selectedSpots, setSelectedSpots] = useState<Record<string, number[]>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [resultsId, setResultsId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
+  const [analytics, setAnalytics] = useState<QuizAnalytics | null>(null);
+  const [questionStartTime, setQuestionStartTime] = useState<Date>(new Date());
   
-  // Use the id from useParams hook
-  const quizId = Array.isArray(params.id) ? params.id[0] : params.id as string;
+  const quizId = params.id as string;
 
-  // Helper function to get the quiz ID, handling both id and _id properties
-  const getQuizId = (quiz: Quiz) => quiz?._id || quiz?.id;
-
+  // Fetch quiz data and create attempt
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login?callbackUrl=/quizzes/' + quizId + '/take');
-      return;
-    }
+    const fetchQuizAndCreateAttempt = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-    if (!authLoading && user && quizId && quizId !== 'undefined') {
-      const fetchQuiz = async () => {
-        try {
-          console.log('Fetching quiz with ID:', quizId);
-          
-          // Get Firebase ID token for authentication
-          const idToken = await user.getIdToken(true);
-          
-          const response = await fetch(`/api/quizzes/${quizId}`, {
-            headers: {
-              'Authorization': `Bearer ${idToken}`
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch quiz (Status: ${response.status})`);
+        // Fetch quiz data
+        const idToken = await user?.getIdToken(true);
+        const quizResponse = await fetch(`/api/quizzes/${quizId}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
           }
-          
-          const data = await response.json();
-          console.log('Quiz data:', data);
-          
-          // Format the quiz to ensure all options have unique IDs
-          const formattedQuiz = formatQuestionOptions(data.quiz);
-          setQuiz(formattedQuiz);
-          
-          // Initialize selectedOptions with empty arrays for each question
-          const initialSelectedOptions: Record<string, string[]> = {};
-          const initialShortAnswers: Record<string, string> = {};
-          const initialSelectedSpots: Record<string, number[]> = {};
-          
-          formattedQuiz.questions.forEach((question: Question) => {
-            initialSelectedOptions[question._id] = [];
-            initialShortAnswers[question._id] = '';
-            initialSelectedSpots[question._id] = [];
-          });
-          
-          setSelectedOptions(initialSelectedOptions);
-          setShortAnswers(initialShortAnswers);
-          setSelectedSpots(initialSelectedSpots);
-          
-        } catch (err) {
-          console.error('Error fetching quiz:', err);
-          setError(err instanceof Error ? err.message : 'Failed to fetch quiz');
-        } finally {
-          setLoading(false);
+        });
+
+        if (!quizResponse.ok) {
+          const data = await quizResponse.json();
+          throw new Error(data.error || 'Failed to fetch quiz');
         }
-      };
-      
-      fetchQuiz();
-    } else if (quizId === 'undefined') {
-      setError('Invalid quiz ID');
-      setLoading(false);
+
+        const quizData = await quizResponse.json();
+        setQuiz(quizData.quiz);
+
+        // Create new attempt
+        const attemptResponse = await fetch(`/api/quizzes/${quizId}/attempts`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!attemptResponse.ok) {
+          const data = await attemptResponse.json();
+          throw new Error(data.error || 'Failed to create attempt');
+        }
+
+        const attemptData = await attemptResponse.json();
+        setAttempt(attemptData.attempt);
+
+        // Fetch analytics
+        const analyticsResponse = await fetch(`/api/quizzes/${quizId}/attempts`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+
+        if (analyticsResponse.ok) {
+          const analyticsData = await analyticsResponse.json();
+          setAnalytics(analyticsData.analytics);
+        }
+
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user && quizId) {
+      fetchQuizAndCreateAttempt();
     }
-  }, [quizId, router, user, authLoading]);
+  }, [quizId, user]);
 
-  const handleOptionToggle = (questionId: string, optionId: string) => {
-    const currentSelected = selectedOptions[questionId] || [];
-    const updatedOptions = currentSelected.includes(optionId)
-      ? currentSelected.filter(id => id !== optionId)
-      : [...currentSelected, optionId];
-    
-    setSelectedOptions({
-      ...selectedOptions,
-      [questionId]: updatedOptions
-    });
-  };
+  // Handle answer submission
+  const handleAnswerSubmit = async (isComplete: boolean = false) => {
+    if (!quiz || !attempt) return;
 
-  const handleShortAnswerChange = (questionId: string, value: string) => {
-    setShortAnswers({
-      ...shortAnswers,
-      [questionId]: value
-    });
-  };
+    const currentQuestion = quiz.questions[currentQuestionIndex];
+    const timeSpent = new Date().getTime() - questionStartTime.getTime();
 
-  const handleSpotClick = (questionId: string, spotIndex: number) => {
-    const currentSelected = selectedSpots[questionId] || [];
-    const updatedSpots = currentSelected.includes(spotIndex)
-      ? currentSelected.filter(idx => idx !== spotIndex)
-      : [...currentSelected, spotIndex];
-    
-    setSelectedSpots({
-      ...selectedSpots,
-      [questionId]: updatedSpots
-    });
-  };
+    let selectedAnswer: string | string[];
+    let isCorrect = false;
 
-  const handleNext = () => {
-    if (quiz && currentQuestionIndex < quiz.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    switch (currentQuestion.type) {
+      case 'multiple-choice':
+        selectedAnswer = selectedOptions[currentQuestion.id] || [];
+        isCorrect = selectedAnswer[0] === currentQuestion.correctAnswer;
+        break;
+      case 'true-false':
+        selectedAnswer = selectedOptions[currentQuestion.id]?.[0] || '';
+        isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+        break;
+      case 'saq':
+      case 'spot': {
+        selectedAnswer = shortAnswers[currentQuestion.id] || '';
+        isCorrect = compareAnswers(
+          (currentQuestion as any).correctAnswer, 
+          selectedAnswer as string
+        );
+        break;
+      }
+      default:
+        return;
     }
-  };
 
-  const handlePrev = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
-  };
-
-  const handleSubmitQuiz = async () => {
-    if (!quiz) return;
-    
     try {
-      setLoading(true);
+      console.log('Submitting answer, isComplete:', isComplete);
       
-      // Get Firebase ID token for authentication
-      const idToken = await user?.getIdToken(true);
-      
-      const quizId = getQuizId(quiz);
-      
-      // Prepare answers based on question types
-      const answers = quiz.questions.map((question, index) => {
-        if (question.type === 'spot') {
-          return {
-            questionId: question._id,
-            shortAnswer: shortAnswers[question._id] || ''
-          };
-        } else if (question.type === 'saq') {
-          return {
-            questionId: question._id,
-            shortAnswer: shortAnswers[question._id] || ''
-          };
-        } else {
-          return {
-            questionId: question._id,
-            selectedOptionIds: selectedOptions[question._id] || []
-          };
-        }
-      });
-      
-      const response = await fetch('/api/quizzes/results', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          quizId,
-          answers,
-          timeSpent: 0 // TODO: Implement timer
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to submit quiz');
+      if (!user) {
+        console.error('User is not logged in');
+        setError('You must be logged in to submit answers. Please log in and try again.');
+        return;
       }
       
-      const data = await response.json();
-      setResultsId(data.resultId);
-      setQuizSubmitted(true);
+      const idToken = await user.getIdToken(true);
+      if (!idToken) {
+        console.error('Failed to get ID token');
+        setError('Authentication error. Please log in again.');
+        return;
+      }
       
-    } catch (error) {
-      console.error('Error submitting quiz:', error);
-      setError('Failed to submit quiz. Please try again.');
-    } finally {
-      setLoading(false);
+      console.log('Got ID token, length:', idToken.length);
+      console.log('Attempt ID:', attempt._id);
+      
+      const requestBody = {
+        attemptId: attempt._id,
+        answers: [{
+          questionId: currentQuestion.id,
+          selectedAnswer,
+          isCorrect,
+          timeSpent
+        }],
+        isComplete
+      };
+      
+      console.log('Request body:', JSON.stringify(requestBody));
+      
+      const response = await fetch(`/api/quizzes/${quizId}/attempts`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.error || `Failed to submit answer (Status: ${response.status})`);
+      }
+
+      const data = await response.json();
+      setAttempt(data.attempt);
+
+      if (!isComplete) {
+        setCurrentQuestionIndex(prev => prev + 1);
+        setQuestionStartTime(new Date());
+      } else {
+        setQuizSubmitted(true);
+      }
+    } catch (err) {
+      console.error('Error in handleAnswerSubmit:', err);
+      setError(err instanceof Error ? err.message : 'Failed to submit answer');
     }
   };
 
-  if (authLoading || loading) {
+  const handleNextQuestion = () => {
+    handleAnswerSubmit(currentQuestionIndex === quiz!.questions.length - 1);
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-background">
         <MainNav />
@@ -246,32 +303,10 @@ export default function TakeQuizPage() {
           <div className="text-center py-10">
             <h3 className="text-xl font-medium mb-2">Error</h3>
             <p className="text-muted-foreground mb-6">{error}</p>
-            <Link href={`/quizzes/${quizId !== 'undefined' ? quizId : ''}`}>
+            <Link href="/quizzes">
               <Button>
                 <ChevronLeft className="mr-2 h-4 w-4" />
-                Back to Quiz Details
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (quizSubmitted && resultsId) {
-    return (
-      <div className="min-h-screen bg-background">
-        <MainNav />
-        <div className="container mx-auto p-6">
-          <div className="text-center py-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-4">
-              <CheckCircle className="h-8 w-8" />
-            </div>
-            <h3 className="text-2xl font-medium mb-2">Quiz Submitted!</h3>
-            <p className="text-muted-foreground mb-6">Your answers have been recorded.</p>
-            <Link href={`/quizzes/results/${resultsId}`}>
-              <Button>
-                View Results
+                Back to Quizzes
               </Button>
             </Link>
           </div>
@@ -286,8 +321,7 @@ export default function TakeQuizPage() {
         <MainNav />
         <div className="container mx-auto p-6">
           <div className="text-center py-10">
-            <h3 className="text-xl font-medium mb-2">Quiz Not Found</h3>
-            <p className="text-muted-foreground mb-6">The quiz you're looking for doesn't exist or you don't have permission to view it.</p>
+            <h3 className="text-xl font-medium mb-2">Quiz not found</h3>
             <Link href="/quizzes">
               <Button>
                 <ChevronLeft className="mr-2 h-4 w-4" />
@@ -300,289 +334,213 @@ export default function TakeQuizPage() {
     );
   }
 
-  const currentQuestion = quiz.questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / quiz.questions.length) * 100;
+  if (quizSubmitted && attempt) {
+    return (
+      <div className="min-h-screen bg-background">
+        <MainNav />
+        <div className="container mx-auto p-6">
+          <div className="mb-6">
+            <Link href="/quizzes">
+              <Button variant="outline">
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Back to Quizzes
+              </Button>
+            </Link>
+          </div>
 
-  // Determine if the current question has been answered
-  const isCurrentQuestionAnswered = () => {
-    if (!currentQuestion) return false;
-    
-    if (currentQuestion.type === 'spot') {
-      return (shortAnswers[currentQuestion._id] || '').trim().length > 0;
-    } else if (currentQuestion.type === 'saq') {
-      return (shortAnswers[currentQuestion._id] || '').trim().length > 0;
-    } else {
-      return (selectedOptions[currentQuestion._id] || []).length > 0;
-    }
-  };
+          <Card className="p-8">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold mb-2">Quiz Complete!</h1>
+              <p className="text-xl mb-4">Your Score: {attempt.score.toFixed(1)}%</p>
+              
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="p-4 bg-secondary rounded-lg">
+                  <Clock className="w-6 h-6 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Time Taken</p>
+                  <p className="text-lg font-medium">
+                    {Math.round((new Date(attempt.completedAt!).getTime() - new Date(attempt.startedAt).getTime()) / 1000 / 60)} mins
+                  </p>
+                </div>
+                <div className="p-4 bg-secondary rounded-lg">
+                  <Brain className="w-6 h-6 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Questions</p>
+                  <p className="text-lg font-medium">{attempt.questionsAttempted} / {attempt.totalQuestions}</p>
+                </div>
+                <div className="p-4 bg-secondary rounded-lg">
+                  <Award className="w-6 h-6 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Correct Answers</p>
+                  <p className="text-lg font-medium">
+                    {attempt.answers.filter(a => a.isCorrect).length} / {attempt.totalQuestions}
+                  </p>
+                </div>
+              </div>
+
+              {analytics && (
+                <div className="text-left mb-8">
+                  <h2 className="text-xl font-bold mb-4">Quiz Statistics</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <p className="text-sm text-muted-foreground">Average Score</p>
+                      <p className="text-lg font-medium">{analytics.averageScore.toFixed(1)}%</p>
+                    </div>
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <p className="text-sm text-muted-foreground">Total Attempts</p>
+                      <p className="text-lg font-medium">{analytics.totalAttempts}</p>
+                    </div>
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <p className="text-sm text-muted-foreground">Completion Rate</p>
+                      <p className="text-lg font-medium">{analytics.completionRate.toFixed(1)}%</p>
+                    </div>
+                    <div className="p-4 bg-secondary rounded-lg">
+                      <p className="text-sm text-muted-foreground">Average Time</p>
+                      <p className="text-lg font-medium">{Math.round(analytics.averageTimeSpent / 1000 / 60)} mins</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-center gap-4">
+                <Link href={`/quizzes/${quizId}`}>
+                  <Button variant="outline">
+                    Review Quiz
+                  </Button>
+                </Link>
+                <Link href="/quizzes">
+                  <Button>
+                    Back to Quizzes
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const currentQuestion = quiz.questions[currentQuestionIndex];
 
   return (
     <div className="min-h-screen bg-background">
       <MainNav />
       <div className="container mx-auto p-6">
-        <div className="mb-6">
-          <Link href={`/quizzes/${quizId}`}>
+        <div className="mb-6 flex justify-between items-center">
+          <Link href="/quizzes">
             <Button variant="outline">
               <ChevronLeft className="mr-2 h-4 w-4" />
-              Back to Quiz Details
+              Back to Quizzes
             </Button>
           </Link>
-        </div>
-        
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">{quiz.title}</h1>
-          <div className="flex items-center gap-2 mb-2">
-            <Progress value={progress} className="h-2" />
-            <span className="text-sm text-muted-foreground">
-              {currentQuestionIndex + 1} of {quiz.questions.length}
-            </span>
+          <div className="text-sm text-muted-foreground">
+            Question {currentQuestionIndex + 1} of {quiz.questions.length}
           </div>
         </div>
-        
+
         <motion.div
           key={currentQuestionIndex}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
-          className="mb-6"
         >
-          <Card className="p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">Question {currentQuestionIndex + 1}</h2>
-            <p className="mb-6">{currentQuestion.text}</p>
-            
-            {/* Multiple Choice Question */}
-            {currentQuestion.type === 'multiple-choice' && Array.isArray(currentQuestion.formattedOptions) && (
-              <motion.div 
-                className="space-y-3 mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ staggerChildren: 0.1, delayChildren: 0.2 }}
-              >
-                {currentQuestion.formattedOptions.map((option, index) => {
-                  const optionId = option._id;
-                  const isSelected = selectedOptions[currentQuestion._id]?.includes(optionId);
-                  
-                  return (
-                    <motion.div 
-                      key={optionId} 
-                      className={`flex items-start space-x-3 p-3 rounded-md transition-colors ${
-                        isSelected ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
-                      }`}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                      onClick={() => handleOptionToggle(currentQuestion._id, optionId)}
-                    >
-                      <Checkbox
-                        id={optionId}
-                        checked={isSelected}
-                        onCheckedChange={() => handleOptionToggle(currentQuestion._id, optionId)}
-                      />
-                      <label 
-                        htmlFor={optionId}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {option.text}
-                      </label>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
+          <Card className="p-8">
+            <h2 className="text-xl font-medium mb-6">{currentQuestion.question}</h2>
+
+            {currentQuestion.type === 'multiple-choice' && currentQuestion.options && (
+              <div className="space-y-4">
+                {currentQuestion.options.map((option, index) => (
+                  <div
+                    key={index}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      selectedOptions[currentQuestion.id]?.[0] === option
+                        ? 'bg-primary/10 border-primary'
+                        : 'hover:bg-secondary'
+                    }`}
+                    onClick={() => setSelectedOptions({
+                      ...selectedOptions,
+                      [currentQuestion.id]: [option]
+                    })}
+                  >
+                    {option}
+                  </div>
+                ))}
+              </div>
             )}
-            
-            {/* True/False Question */}
-            {currentQuestion.type === 'true-false' && Array.isArray(currentQuestion.formattedOptions) && (
-              <motion.div 
-                className="flex gap-4 mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ staggerChildren: 0.1, delayChildren: 0.2 }}
-              >
-                {currentQuestion.formattedOptions.map((option, index) => {
-                  const optionId = option._id;
-                  const isSelected = selectedOptions[currentQuestion._id]?.includes(optionId);
-                  
-                  return (
-                    <motion.div 
-                      key={optionId} 
-                      className={`flex-1 p-4 rounded-md border transition-colors cursor-pointer ${
-                        isSelected ? 'bg-primary/10 border-primary/30' : 'border-border hover:bg-muted/50'
-                      }`}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => {
-                        // For true/false, we want to select only one option
-                        setSelectedOptions({
-                          ...selectedOptions,
-                          [currentQuestion._id]: [optionId]
-                        });
-                      }}
-                    >
-                      <div className="flex justify-center items-center h-full">
-                        <span className="text-lg font-medium">{option.text}</span>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
+
+            {currentQuestion.type === 'true-false' && (
+              <div className="flex gap-4">
+                <Button
+                  variant="outline"
+                  className={selectedOptions[currentQuestion.id]?.[0] === 'true' ? 'bg-primary/10' : ''}
+                  onClick={() => setSelectedOptions({
+                    ...selectedOptions,
+                    [currentQuestion.id]: ['true']
+                  })}
+                >
+                  True
+                </Button>
+                <Button
+                  variant="outline"
+                  className={selectedOptions[currentQuestion.id]?.[0] === 'false' ? 'bg-primary/10' : ''}
+                  onClick={() => setSelectedOptions({
+                    ...selectedOptions,
+                    [currentQuestion.id]: ['false']
+                  })}
+                >
+                  False
+                </Button>
+              </div>
             )}
-            
-            {/* Spot Question (Image Identification) */}
-            {currentQuestion.type === 'spot' && currentQuestion.imageUrl && (
-              <motion.div 
-                className="mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5 }}
-              >
-                <div className="relative border rounded-md overflow-hidden mb-6">
-                  <img 
-                    src={currentQuestion.imageUrl} 
-                    alt="Image to identify" 
-                    className="max-w-full h-auto mx-auto"
+
+            {(currentQuestion.type === 'saq' || currentQuestion.type === 'spot') && (
+              <div className="space-y-4">
+                {currentQuestion.imageUrl && currentQuestion.type === 'spot' && (
+                  <img
+                    src={currentQuestion.imageUrl}
+                    alt="Spot question image"
+                    className="max-w-full h-auto rounded-lg mb-4"
+                  />
+                )}
+                <div>
+                  <Label>Your Answer</Label>
+                  <Input
+                    value={shortAnswers[currentQuestion.id] || ''}
+                    onChange={(e) => setShortAnswers({
+                      ...shortAnswers,
+                      [currentQuestion.id]: e.target.value
+                    })}
+                    placeholder="Type your answer here"
                   />
                 </div>
-                
-                <div className="mb-2">
-                  <Label htmlFor="image-identification">Your Answer</Label>
-                  <Textarea 
-                    id="image-identification"
-                    value={shortAnswers[currentQuestion._id] || ''}
-                    onChange={(e) => handleShortAnswerChange(currentQuestion._id, e.target.value)}
-                    placeholder="Identify what you see in the image..."
-                    rows={2}
-                    className="mt-1"
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Enter your identification of the image above. Be specific and concise.
-                </p>
-              </motion.div>
+              </div>
             )}
-            
-            {/* Short Answer Question */}
-            {currentQuestion.type === 'saq' && (
-              <motion.div 
-                className="mb-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5 }}
+
+            <div className="mt-8 flex justify-between">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
+                disabled={currentQuestionIndex === 0}
               >
-                <div className="mb-2">
-                  <Label htmlFor="short-answer">Your Answer</Label>
-                  <Textarea 
-                    id="short-answer"
-                    value={shortAnswers[currentQuestion._id] || ''}
-                    onChange={(e) => handleShortAnswerChange(currentQuestion._id, e.target.value)}
-                    placeholder="Type your answer here..."
-                    rows={4}
-                    className="mt-1"
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Enter your answer in the text field above. Be concise and specific.
-                </p>
-              </motion.div>
-            )}
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
+              </Button>
+              <Button onClick={handleNextQuestion}>
+                {currentQuestionIndex === quiz.questions.length - 1 ? (
+                  <>
+                    Submit Quiz
+                    <Check className="ml-2 h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    Next
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
           </Card>
-          
-          <div className="flex justify-between">
-            <Button 
-              onClick={handlePrev}
-              disabled={currentQuestionIndex === 0}
-              variant="outline"
-            >
-              Previous
-            </Button>
-            
-            {currentQuestionIndex === quiz.questions.length - 1 ? (
-              <Button 
-                onClick={handleSubmitQuiz}
-                disabled={!isCurrentQuestionAnswered()}
-              >
-                Submit Quiz
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleNext}
-                disabled={!isCurrentQuestionAnswered()}
-              >
-                Next
-              </Button>
-            )}
-          </div>
         </motion.div>
       </div>
     </div>
   );
-}
-
-function formatQuestionOptions(quiz: Quiz): Quiz {
-  // Create a deep copy to avoid mutating original data
-  const quizCopy = JSON.parse(JSON.stringify(quiz));
-  
-  // Handle both formats of questions and options
-  quizCopy.questions.forEach((question: Question, qIndex: number) => {
-    // Support both text and question fields
-    question.text = question.text || (question as any).question;
-    
-    // Ensure question has a unique _id
-    if (!question._id) {
-      question._id = `question-${qIndex}`;
-    }
-    
-    // Special handling for different question types
-    if (question.type === 'true-false') {
-      // For true-false questions, create True/False options as array of objects
-      question.formattedOptions = [
-        {
-          _id: `option-${qIndex}-true`,
-          text: 'True',
-          isCorrect: question.correctAnswer === 'true'
-        },
-        {
-          _id: `option-${qIndex}-false`,
-          text: 'False',
-          isCorrect: question.correctAnswer === 'false'
-        }
-      ];
-    } 
-    else if (question.type === 'multiple-choice') {
-      // For multiple choice questions
-      // Convert the array of strings to array of objects with IDs
-      question.formattedOptions = question.options.map((option: any, oIndex: number) => {
-        return {
-          _id: `option-${qIndex}-${oIndex}`,
-          text: option,
-          isCorrect: question.correctAnswer === option
-        };
-      });
-    }
-    else if (question.type === 'spot' || question.type === 'saq') {
-      // These question types don't need formatted options
-    }
-    else {
-      // Default case for other question types
-      if (Array.isArray(question.options)) {
-        if (question.options.length === 0 || question.options.every((opt: any) => opt === '')) {
-          question.formattedOptions = [
-            {
-              _id: `option-${qIndex}-default`,
-              text: 'No options provided',
-              isCorrect: false
-            }
-          ];
-        }
-      }
-    }
-    
-    // Keep original options array for reference
-    // but use formattedOptions for rendering
-  });
-  
-  return quizCopy;
 }
