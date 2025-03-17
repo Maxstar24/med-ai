@@ -80,6 +80,16 @@ interface QuizAnalytics {
     averageTimeSpent: number;
     skipRate: number;
   }[];
+  userPerformance?: {
+    percentile: number;
+    rank: string;
+    fastestTime: boolean;
+    highestAccuracy: boolean;
+  };
+  accuracyTrend?: {
+    date: string;
+    score: number;
+  }[];
 }
 
 function isString(value: string | string[]): value is string {
@@ -101,22 +111,48 @@ function compareAnswers(correctAnswer: string | string[], userAnswer: string): b
 }
 
 export default function TakeQuizPage() {
+  const { user, loading: authLoading, refreshToken } = useAuth();
   const router = useRouter();
   const params = useParams();
-  const { user } = useAuth();
+  const quizId = params.id as string;
+  
   const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [loading, setLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
   const [shortAnswers, setShortAnswers] = useState<Record<string, string>>({});
   const [selectedSpots, setSelectedSpots] = useState<Record<string, number[]>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [analytics, setAnalytics] = useState<QuizAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [startTime] = useState<Date>(new Date());
   const [questionStartTime, setQuestionStartTime] = useState<Date>(new Date());
   
-  const quizId = params.id as string;
+  // Fetch quiz analytics data
+  const fetchQuizAnalytics = async (quizId: string) => {
+    try {
+      const token = await refreshToken();
+      if (!token) {
+        throw new Error('Failed to get authentication token');
+      }
+      
+      const response = await fetch(`/api/quizzes/${quizId}/analytics`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch quiz analytics');
+      }
+      
+      const data = await response.json();
+      setAnalytics(data.analytics);
+    } catch (error) {
+      console.error('Error fetching quiz analytics:', error);
+    }
+  };
 
   // Fetch quiz data and create attempt
   useEffect(() => {
@@ -271,6 +307,9 @@ export default function TakeQuizPage() {
         setQuestionStartTime(new Date());
       } else {
         setQuizSubmitted(true);
+        
+        // Fetch analytics after quiz completion
+        await fetchQuizAnalytics(quizId as string);
       }
     } catch (err) {
       console.error('Error in handleAnswerSubmit:', err);
@@ -353,7 +392,7 @@ export default function TakeQuizPage() {
               <h1 className="text-3xl font-bold mb-2">Quiz Complete!</h1>
               <p className="text-xl mb-4">Your Score: {attempt.score.toFixed(1)}%</p>
               
-              <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 <div className="p-4 bg-secondary rounded-lg">
                   <Clock className="w-6 h-6 mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">Time Taken</p>
@@ -378,7 +417,7 @@ export default function TakeQuizPage() {
               {analytics && (
                 <div className="text-left mb-8">
                   <h2 className="text-xl font-bold mb-4">Quiz Statistics</h2>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-4 bg-secondary rounded-lg">
                       <p className="text-sm text-muted-foreground">Average Score</p>
                       <p className="text-lg font-medium">{analytics.averageScore.toFixed(1)}%</p>
@@ -396,6 +435,121 @@ export default function TakeQuizPage() {
                       <p className="text-lg font-medium">{Math.round(analytics.averageTimeSpent / 1000 / 60)} mins</p>
                     </div>
                   </div>
+                  
+                  {/* Performance Comparison */}
+                  {analytics.userPerformance && (
+                    <div className="mt-8">
+                      <h3 className="text-lg font-semibold mb-3">Your Performance</h3>
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-1">Percentile Rank</p>
+                            <div className="flex items-center">
+                              <div className="w-full bg-secondary rounded-full h-4 mr-2">
+                                <div 
+                                  className="bg-primary h-4 rounded-full" 
+                                  style={{ width: `${analytics.userPerformance.percentile}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-medium">{analytics.userPerformance.percentile}%</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              You performed better than {analytics.userPerformance.percentile}% of quiz takers
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">Performance Rank</p>
+                            <p className="text-lg font-medium">{analytics.userPerformance.rank}</p>
+                            {analytics.userPerformance.fastestTime && (
+                              <p className="text-xs text-green-500 mt-1">Fastest completion time!</p>
+                            )}
+                            {analytics.userPerformance.highestAccuracy && (
+                              <p className="text-xs text-green-500 mt-1">Highest accuracy!</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Accuracy Trend */}
+                  {analytics.accuracyTrend && analytics.accuracyTrend.length > 0 && (
+                    <div className="mt-8">
+                      <h3 className="text-lg font-semibold mb-3">Your Accuracy Trend</h3>
+                      <div className="bg-secondary p-4 rounded-lg h-48">
+                        <div className="flex h-full items-end gap-2">
+                          {analytics.accuracyTrend.map((point, i) => (
+                            <div 
+                              key={i} 
+                              className="flex-1 flex flex-col items-center"
+                              title={`${point.date}: ${point.score}%`}
+                            >
+                              <div 
+                                className="w-full bg-primary/70 hover:bg-primary transition-colors rounded-t-sm"
+                                style={{ height: `${Math.max(5, point.score)}%` }}
+                              ></div>
+                              {i % 3 === 0 && (
+                                <span className="text-xs text-muted-foreground mt-1 rotate-45 origin-left">
+                                  {new Date(point.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Question Performance */}
+                  {analytics.questionStats && analytics.questionStats.length > 0 && (
+                    <div className="mt-8">
+                      <h3 className="text-lg font-semibold mb-3">Question Performance</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-secondary">
+                              <th className="p-2 text-left">Question</th>
+                              <th className="p-2 text-center">Success Rate</th>
+                              <th className="p-2 text-center">Avg. Time</th>
+                              <th className="p-2 text-center">Skip Rate</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {analytics.questionStats.map((stat, i) => {
+                              const question = quiz.questions.find(q => q.id === stat.questionId);
+                              return (
+                                <tr key={i} className="border-b border-secondary">
+                                  <td className="p-2 text-left">
+                                    <span className="line-clamp-1">{question?.question || `Question ${i+1}`}</span>
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <div className="flex items-center justify-center">
+                                      <div className="w-16 bg-secondary rounded-full h-2 mr-2">
+                                        <div 
+                                          className={`h-2 rounded-full ${
+                                            stat.successRate > 70 ? 'bg-green-500' : 
+                                            stat.successRate > 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                          }`}
+                                          style={{ width: `${stat.successRate}%` }}
+                                        ></div>
+                                      </div>
+                                      <span className="text-xs">{stat.successRate}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <span className="text-sm">{Math.round(stat.averageTimeSpent)}s</span>
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <span className="text-sm">{stat.skipRate}%</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
