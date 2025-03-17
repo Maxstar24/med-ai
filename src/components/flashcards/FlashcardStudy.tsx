@@ -164,9 +164,7 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
 
   // Handle card flip
   const handleFlip = () => {
-    if (!flipped) {
-      setFlipped(true);
-    }
+    setFlipped(prev => !prev);
   };
 
   // Handle marking a card
@@ -525,10 +523,16 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
       >
         <div 
           className={`relative w-full h-full transform-style-3d transition-transform duration-500 ${flipped ? 'rotate-y-180' : ''}`}
-          onClick={handleFlip}
+          onClick={(e) => {
+            // Only handle flip if not clicking on a button
+            if (!(e.target as HTMLElement).closest('button')) {
+              e.stopPropagation();
+              handleFlip();
+            }
+          }}
         >
           {/* Front of card (Question) */}
-          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-10 flex flex-col">
+          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-10 flex flex-col cursor-pointer">
             <div className="flex justify-between items-start mb-6">
               <Badge variant="outline" className="text-sm px-3 py-1">
                 Question
@@ -538,7 +542,10 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
                   variant="ghost" 
                   size="icon" 
                   className="h-10 w-10" 
-                  onClick={toggleZoom}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleZoom(e);
+                  }}
                 >
                   {isZoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
                 </Button>
@@ -552,12 +559,12 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
             </div>
             
             <div className="mt-6 text-center text-muted-foreground text-base">
-              Click to reveal answer
+              Tap to flip card
             </div>
           </div>
           
           {/* Back of card (Answer) */}
-          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-10 flex flex-col rotate-y-180">
+          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-10 flex flex-col rotate-y-180 cursor-pointer">
             <div className="flex justify-between items-start mb-6">
               <Badge variant="outline" className="text-sm px-3 py-1">
                 Answer
@@ -567,7 +574,10 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
                   variant="ghost" 
                   size="icon" 
                   className="h-10 w-10" 
-                  onClick={toggleZoom}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleZoom(e);
+                  }}
                 >
                   {isZoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
                 </Button>
@@ -586,6 +596,10 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
                 <p className="text-base">{currentCard.explanation}</p>
               </div>
             )}
+            
+            <div className="mt-6 text-center text-muted-foreground text-base">
+              Tap to flip back
+            </div>
           </div>
         </div>
       </div>
