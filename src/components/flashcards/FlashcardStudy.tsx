@@ -17,7 +17,9 @@ import {
   Home,
   ZoomIn,
   ZoomOut,
-  Star
+  Star,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,6 +70,8 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [showConfidenceRating, setShowConfidenceRating] = useState(false);
   const [confidenceRating, setConfidenceRating] = useState<number>(0);
+  const [currentResult, setCurrentResult] = useState<'correct' | 'incorrect' | 'skip' | null>(null);
+  const [studyHistory, setStudyHistory] = useState<{index: number, result: string}[]>([]);
 
   // Fetch flashcards based on filter or setId
   const fetchFlashcards = useCallback(async () => {
@@ -162,10 +166,22 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
   const handleFlip = () => {
     if (!flipped) {
       setFlipped(true);
-    } else {
-      // When card is already flipped, show confidence rating
-      setShowConfidenceRating(true);
     }
+  };
+
+  // Handle marking a card
+  const handleMarkCard = (result: 'correct' | 'incorrect' | 'skip') => {
+    // Update session stats
+    setSessionStats(prev => ({
+      ...prev,
+      correct: result === 'correct' ? prev.correct + 1 : prev.correct,
+      incorrect: result === 'incorrect' ? prev.incorrect + 1 : prev.incorrect,
+      skipped: result === 'skip' ? prev.skipped + 1 : prev.skipped,
+    }));
+    
+    // Set current result and show confidence rating
+    setCurrentResult(result);
+    setShowConfidenceRating(true);
   };
 
   // Handle confidence rating selection
@@ -198,9 +214,14 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
       };
       setFlashcards(updatedFlashcards);
       
+      // Add to study history
+      setStudyHistory(prev => [...prev, {
+        index: currentIndex,
+        result: currentResult || 'skip'
+      }]);
+      
       // Move to next card
-      handleNextCard(rating >= 4 ? 'correct' : rating >= 2 ? 'skip' : 'incorrect');
-      setShowConfidenceRating(false);
+      moveToNextCard();
     } catch (error) {
       console.error('Error updating confidence level:', error);
       toast({
@@ -209,15 +230,17 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
         variant: 'destructive'
       });
       // Still move to next card even if update fails
-      handleNextCard(rating >= 4 ? 'correct' : rating >= 2 ? 'skip' : 'incorrect');
-      setShowConfidenceRating(false);
+      moveToNextCard();
     }
   };
 
-  // Handle next card
-  const handleNextCard = (result: 'correct' | 'incorrect' | 'skip') => {
-    // Reset flip state
+  // Move to the next card
+  const moveToNextCard = () => {
+    // Reset states
     setFlipped(false);
+    setShowConfidenceRating(false);
+    setConfidenceRating(0);
+    setCurrentResult(null);
     
     // Check if we've reached the end of the deck
     if (currentIndex >= flashcards.length - 1) {
@@ -229,6 +252,37 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
     } else {
       // Move to the next card
       setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  // Move to the previous card
+  const moveToPreviousCard = () => {
+    if (currentIndex > 0) {
+      // Reset states
+      setFlipped(false);
+      setShowConfidenceRating(false);
+      setConfidenceRating(0);
+      setCurrentResult(null);
+      
+      // Move to the previous card
+      setCurrentIndex(currentIndex - 1);
+      
+      // If there's history, update the stats
+      if (studyHistory.length > 0) {
+        const lastEntry = studyHistory[studyHistory.length - 1];
+        if (lastEntry.index === currentIndex - 1) {
+          // Remove the last entry from history
+          setStudyHistory(prev => prev.slice(0, -1));
+          
+          // Update session stats
+          setSessionStats(prev => ({
+            ...prev,
+            correct: lastEntry.result === 'correct' ? prev.correct - 1 : prev.correct,
+            incorrect: lastEntry.result === 'incorrect' ? prev.incorrect - 1 : prev.incorrect,
+            skipped: lastEntry.result === 'skip' ? prev.skipped - 1 : prev.skipped,
+          }));
+        }
+      }
     }
   };
 
@@ -531,10 +585,6 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
                 <p className="text-sm">{currentCard.explanation}</p>
               </div>
             )}
-            
-            <div className="mt-4 text-center text-muted-foreground text-sm">
-              {showConfidenceRating ? 'Rate your confidence' : 'Click to rate your confidence'}
-            </div>
           </div>
         </div>
       </div>
@@ -546,7 +596,20 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
           animate={{ opacity: 1, y: 0 }}
           className="mt-6 p-6 bg-card rounded-xl shadow-md w-full max-w-3xl"
         >
-          <h3 className="text-lg font-medium text-center mb-4">How confident are you with this card?</h3>
+          <h3 className="text-lg font-medium text-center mb-4">
+            How confident are you with this card?
+            {currentResult && (
+              <span className={`ml-2 inline-block px-2 py-1 rounded text-sm ${
+                currentResult === 'correct' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                currentResult === 'incorrect' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 
+                'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+              }`}>
+                {currentResult === 'correct' ? 'Marked Correct' : 
+                 currentResult === 'incorrect' ? 'Marked Incorrect' : 
+                 'Skipped'}
+              </span>
+            )}
+          </h3>
           <div className="flex justify-center gap-4">
             {[1, 2, 3, 4, 5].map((rating) => (
               <Button
@@ -587,7 +650,7 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
             variant="destructive" 
             size="lg" 
             className="px-6"
-            onClick={() => handleNextCard('incorrect')}
+            onClick={() => handleMarkCard('incorrect')}
           >
             <X className="mr-2 h-5 w-5" />
             Incorrect
@@ -596,7 +659,7 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
             variant="outline" 
             size="lg" 
             className="px-6"
-            onClick={() => handleNextCard('skip')}
+            onClick={() => handleMarkCard('skip')}
           >
             <SkipForward className="mr-2 h-5 w-5" />
             Skip
@@ -605,7 +668,7 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
             variant="default" 
             size="lg" 
             className="px-6"
-            onClick={() => handleNextCard('correct')}
+            onClick={() => handleMarkCard('correct')}
           >
             <Check className="mr-2 h-5 w-5" />
             Correct
@@ -615,12 +678,24 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
       
       {/* Navigation buttons */}
       <div className="w-full max-w-3xl mt-8 flex justify-between">
-        <Button variant="outline" size="lg" asChild className="px-5">
-          <Link href="/flashcards">
-            <ArrowLeft className="mr-2 h-5 w-5" />
-            Back to Dashboard
-          </Link>
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" size="lg" asChild className="px-5">
+            <Link href="/flashcards">
+              <ArrowLeft className="mr-2 h-5 w-5" />
+              Back to Dashboard
+            </Link>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="lg" 
+            className="px-5"
+            onClick={moveToPreviousCard}
+            disabled={currentIndex === 0 || showConfidenceRating}
+          >
+            <ChevronLeft className="mr-2 h-5 w-5" />
+            Previous
+          </Button>
+        </div>
         <div className="flex gap-3">
           <Button variant="outline" size="lg" onClick={shuffleDeck} className="px-5">
             <Shuffle className="mr-2 h-5 w-5" />

@@ -42,7 +42,8 @@ export async function PATCH(
     }
     
     const uid = decodedToken.uid;
-    const flashcardId = params.id;
+    // Fix for NextJS 15+ - await params before using properties
+    const { id: flashcardId } = await Promise.resolve(params);
     
     // Validate flashcard ID
     if (!mongoose.Types.ObjectId.isValid(flashcardId)) {
