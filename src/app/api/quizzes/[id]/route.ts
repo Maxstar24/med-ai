@@ -9,21 +9,17 @@ import { DecodedIdToken } from 'firebase-admin/auth';
 
 // GET: Fetch a specific quiz by ID
 export async function GET(req, context) {
-  const { params } = context;
   try {
-    console.log('Starting GET request for quiz');
-    
-    // Log the auth header length for debugging
-    const authHeader = req.headers.get('authorization') || '';
-    console.log('Auth header length:', authHeader.length);
+    console.log('GET request received for quiz');
     
     // Connect to the database
-    console.log('Connecting to database...');
     await connectToDatabase();
-    console.log('Database connection successful');
+    console.log('Connected to database');
     
     // Verify Firebase token
-    console.log('Verifying Firebase token...');
+    const authHeader = req.headers.get('authorization') || '';
+    console.log('Authorization header present:', !!authHeader);
+    
     const decodedToken = await verifyFirebaseToken(authHeader);
     console.log('Token verification result:', decodedToken ? 'success' : 'failure');
     
@@ -35,6 +31,7 @@ export async function GET(req, context) {
     }
     
     // Get the quiz ID from the URL parameters
+    const { params } = context;
     console.log('Params:', params);
     const id = params.id;
     console.log('Quiz ID:', id);

@@ -97,7 +97,6 @@ export async function POST(req, context) {
 
 // PATCH: Update a quiz attempt with answers
 export async function PATCH(req, context) {
-  const { params } = context;
   try {
     console.log('PATCH request received for quiz attempt');
     
@@ -106,19 +105,9 @@ export async function PATCH(req, context) {
     console.log('Connected to database');
     
     // Verify Firebase token
-    const authHeader = req.headers.get('authorization');
+    const authHeader = req.headers.get('authorization') || '';
     console.log('Authorization header present:', !!authHeader);
     
-    if (!authHeader) {
-      console.error('Authorization header missing');
-      return NextResponse.json(
-        { error: 'Authorization header missing' },
-        { status: 401 }
-      );
-    }
-
-    // Pass the entire authHeader to verifyFirebaseToken
-    // Let the function handle the Bearer prefix
     const decodedToken = await verifyFirebaseToken(authHeader);
     console.log('Token verification result:', decodedToken ? 'success' : 'failure');
     
@@ -130,26 +119,26 @@ export async function PATCH(req, context) {
       );
     }
     
-    const userFirebaseUid = decodedToken.uid;
-    console.log('User Firebase UID:', userFirebaseUid);
+    const userId = decodedToken.uid;
+    console.log('User ID:', userId);
     
-    // Get the request body
-    const body = await req.json();
-    const { attemptId, answers, isComplete } = body;
-    console.log('Request body:', { attemptId, answersCount: answers?.length, isComplete });
+    // Parse request body
+    const data = await req.json();
+    console.log('Request data:', JSON.stringify(data));
+    
+    const { attemptId, answers, isComplete } = data;
     
     if (!attemptId) {
-      console.error('attemptId is missing in request');
+      console.error('Missing attempt ID');
       return NextResponse.json(
-        { error: 'attemptId is required' },
+        { error: 'Missing attempt ID' },
         { status: 400 }
       );
     }
     
     // Find the attempt
-    console.log('Finding attempt with ID:', attemptId);
     const attempt = await QuizAttempt.findById(attemptId);
-    console.log('Attempt found:', !!attempt);
+    console.log('Found attempt:', attempt ? 'yes' : 'no');
     
     if (!attempt) {
       console.error('Attempt not found');
@@ -159,53 +148,93 @@ export async function PATCH(req, context) {
       );
     }
     
-    // Verify the user owns this attempt
-    console.log('Attempt userFirebaseUid:', attempt.userFirebaseUid);
-    console.log('Attempt userId:', attempt.userId);
-    console.log('Current userFirebaseUid:', userFirebaseUid);
-    
-    const isOwner = attempt.userFirebaseUid === userFirebaseUid || attempt.userId === userFirebaseUid;
-    console.log('Is owner:', isOwner);
-    
-    if (!isOwner) {
-      console.error('User is not the owner of this attempt');
+    // Verify the attempt belongs to the user
+    if (attempt.userId !== userId) {
+      console.error('Attempt does not belong to user');
       return NextResponse.json(
-        { error: 'Unauthorized - Not the owner' },
+        { error: 'Unauthorized - Attempt does not belong to user' },
         { status: 403 }
       );
     }
     
-    // Update the attempt with new answers
+    // Add answers to the attempt
     if (answers && answers.length > 0) {
-      // Ensure each answer has a valid questionId
-      const validAnswers = answers.filter((answer: { questionId?: string }) => answer.questionId);
-      console.log('Valid answers count:', validAnswers.length);
+      console.log('Adding answers to attempt');
       
-      if (validAnswers.length > 0) {
-        attempt.answers = attempt.answers.concat(validAnswers);
-        attempt.questionsAttempted = attempt.answers.length;
+      answers.forEach(answer => {
+        const existingAnswerIndex = attempt.answers.findIndex(
+          a => a.questionId.toString() === answer.questionId
+        );
         
-        // Calculate score
-        const correctAnswers = attempt.answers.filter((answer: { isCorrect: boolean }) => answer.isCorrect).length;
-        attempt.score = (correctAnswers / attempt.totalQuestions) * 100;
-        console.log('Updated score:', attempt.score);
-      }
+        if (existingAnswerIndex >= 0) {
+          // Update existing answer
+          attempt.answers[existingAnswerIndex] = {
+            ...attempt.answers[existingAnswerIndex],
+            ...answer
+          };
+        } else {
+          // Add new answer
+          attempt.answers.push(answer);
+        }
+      });
+      
+      attempt.questionsAttempted = attempt.answers.length;
     }
     
-    // Mark as complete if specified
+    // If the quiz is complete, calculate the score and mark as completed
     if (isComplete) {
       console.log('Marking attempt as complete');
+      
       attempt.completedAt = new Date();
       
+      // Get the quiz to calculate the score
+      const { params } = context;
+      const quizId = params.id;
+      
+      const quiz = await Quiz.findById(quizId);
+      
+      if (!quiz) {
+        console.error('Quiz not found');
+        return NextResponse.json(
+          { error: 'Quiz not found' },
+          { status: 404 }
+        );
+      }
+      
+      // Calculate the score
+      const totalQuestions = quiz.questions.length;
+      const correctAnswers = attempt.answers.filter(a => a.isCorrect).length;
+      
+      // Calculate score as percentage
+      const score = totalQuestions > 0 
+        ? (correctAnswers / totalQuestions) * 100 
+        : 0;
+      
+      console.log(`Score calculation: ${correctAnswers} correct out of ${totalQuestions} = ${score}%`);
+      
+      attempt.score = score;
+      attempt.totalQuestions = totalQuestions;
+      
       // Update analytics
-      await updateQuizAnalytics(params.id, attempt);
+      await updateQuizAnalytics(quizId, attempt);
     }
     
-    console.log('Saving attempt');
+    // Save the attempt
     await attempt.save();
     console.log('Attempt saved successfully');
     
-    return NextResponse.json({ attempt });
+    return NextResponse.json({ 
+      success: true, 
+      attempt: {
+        _id: attempt._id,
+        startedAt: attempt.startedAt,
+        completedAt: attempt.completedAt,
+        score: attempt.score,
+        totalQuestions: attempt.totalQuestions,
+        questionsAttempted: attempt.questionsAttempted,
+        answers: attempt.answers
+      }
+    });
   } catch (error) {
     console.error('Error updating quiz attempt:', error);
     return NextResponse.json(

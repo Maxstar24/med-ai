@@ -390,7 +390,7 @@ export default function TakeQuizPage() {
           <Card className="p-8">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold mb-2">Quiz Complete!</h1>
-              <p className="text-xl mb-4">Your Score: {attempt.score.toFixed(1)}%</p>
+              <p className="text-xl mb-4">Your Score: {attempt.score ? attempt.score.toFixed(1) : '0.0'}%</p>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 <div className="p-4 bg-secondary rounded-lg">
