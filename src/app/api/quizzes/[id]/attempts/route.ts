@@ -4,6 +4,20 @@ import Quiz from '@/models/Quiz';
 import QuizAttempt from '@/models/QuizAttempt';
 import QuizAnalytics from '@/models/QuizAnalytics';
 import { verifyFirebaseToken } from '@/lib/firebase-admin';
+import { NextRequest } from 'next/server';
+
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
+interface QuizAnswer {
+  questionId: string;
+  selectedAnswer?: string | string[];
+  isCorrect: boolean;
+  timeSpent?: number;
+}
 
 // Helper function to update quiz analytics
 async function updateQuizAnalytics(quizId: string, attempt: any) {
@@ -28,7 +42,7 @@ async function updateQuizAnalytics(quizId: string, attempt: any) {
 }
 
 // POST: Create a new quiz attempt
-export async function POST(req, context) {
+export async function POST(req: NextRequest, context: RouteContext) {
   const { params } = context;
   try {
     console.log('POST request received for quiz attempt');
@@ -96,7 +110,7 @@ export async function POST(req, context) {
 }
 
 // PATCH: Update a quiz attempt with answers
-export async function PATCH(req, context) {
+export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
     console.log('PATCH request received for quiz attempt');
     
@@ -161,9 +175,9 @@ export async function PATCH(req, context) {
     if (answers && answers.length > 0) {
       console.log('Adding answers to attempt');
       
-      answers.forEach(answer => {
+      answers.forEach((answer: QuizAnswer) => {
         const existingAnswerIndex = attempt.answers.findIndex(
-          a => a.questionId.toString() === answer.questionId
+          (a: any) => a.questionId.toString() === answer.questionId
         );
         
         if (existingAnswerIndex >= 0) {
@@ -203,7 +217,7 @@ export async function PATCH(req, context) {
       
       // Calculate the score
       const totalQuestions = quiz.questions.length;
-      const correctAnswers = attempt.answers.filter(a => a.isCorrect).length;
+      const correctAnswers = attempt.answers.filter((a: any) => a.isCorrect).length;
       
       // Calculate score as percentage
       const score = totalQuestions > 0 
@@ -245,7 +259,7 @@ export async function PATCH(req, context) {
 }
 
 // GET: Get attempts for a quiz
-export async function GET(req, context) {
+export async function GET(req: NextRequest, context: RouteContext) {
   const { params } = context;
   try {
     console.log('GET request received for quiz attempts');

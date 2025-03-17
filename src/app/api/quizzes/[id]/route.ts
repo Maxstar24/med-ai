@@ -6,9 +6,16 @@ import User from '@/models/User';
 import mongoose from 'mongoose';
 import { verifyFirebaseToken } from '@/lib/firebase-admin';
 import { DecodedIdToken } from 'firebase-admin/auth';
+import { NextRequest } from 'next/server';
+
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
 
 // GET: Fetch a specific quiz by ID
-export async function GET(req, context) {
+export async function GET(req: NextRequest, context: RouteContext) {
   try {
     console.log('GET request received for quiz');
     
@@ -90,7 +97,7 @@ export async function GET(req, context) {
 }
 
 // PATCH: Update a specific quiz by ID
-export async function PATCH(req, context) {
+export async function PATCH(req: NextRequest, context: RouteContext) {
   const { params } = context;
   try {
     // Defensive check for request object
@@ -204,7 +211,7 @@ export async function PATCH(req, context) {
 }
 
 // DELETE: Delete a specific quiz by ID
-export async function DELETE(req, context) {
+export async function DELETE(req: NextRequest, context: RouteContext) {
   const { params } = context;
   try {
     // Defensive check for request object
