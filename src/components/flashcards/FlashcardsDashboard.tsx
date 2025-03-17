@@ -170,6 +170,16 @@ const FlashcardsDashboard = () => {
       const data = await response.json();
       console.log('Statistics received from API:', data);
       
+      // Ensure last30Days data is properly formatted
+      if (data && data.last30Days) {
+        // Force the count to be a number
+        data.last30Days = data.last30Days.map((day: { date: string; count: any }) => ({
+          ...day,
+          count: Number(day.count)
+        }));
+        console.log('Processed last30Days data:', data.last30Days);
+      }
+      
       // Update the cache
       statsCache.data = data;
       statsCache.timestamp = now;
@@ -573,14 +583,14 @@ const FlashcardsDashboard = () => {
                               day.count === 0 
                                 ? 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700' 
                                 : day.count === 1 
-                                ? 'bg-green-100 dark:bg-green-900/20' 
+                                ? 'bg-green-100 dark:bg-green-900/30' 
                                 : day.count === 2 
-                                ? 'bg-green-200 dark:bg-green-800/30' 
+                                ? 'bg-green-200 dark:bg-green-800/40' 
                                 : day.count === 3 
-                                ? 'bg-green-300 dark:bg-green-700/40' 
+                                ? 'bg-green-300 dark:bg-green-700/50' 
                                 : day.count === 4 
-                                ? 'bg-green-400 dark:bg-green-600/60' 
-                                : 'bg-green-500 dark:bg-green-500/80'
+                                ? 'bg-green-400 dark:bg-green-600/70' 
+                                : 'bg-green-500 dark:bg-green-500/90'
                             }`}
                             style={{ 
                               height: day.count ? `${Math.min(100, day.count * 15 + 20)}%` : '10%'
@@ -619,15 +629,15 @@ const FlashcardsDashboard = () => {
                       <span className="text-xs text-muted-foreground">0</span>
                     </div>
                     <div className="flex gap-1 items-center">
-                      <div className="w-3 h-3 bg-green-100 dark:bg-green-900/20 rounded-sm"></div>
+                      <div className="w-3 h-3 bg-green-100 dark:bg-green-900/30 rounded-sm"></div>
                       <span className="text-xs text-muted-foreground">1</span>
                     </div>
                     <div className="flex gap-1 items-center">
-                      <div className="w-3 h-3 bg-green-300 dark:bg-green-700/40 rounded-sm"></div>
+                      <div className="w-3 h-3 bg-green-300 dark:bg-green-700/50 rounded-sm"></div>
                       <span className="text-xs text-muted-foreground">3</span>
                     </div>
                     <div className="flex gap-1 items-center">
-                      <div className="w-3 h-3 bg-green-500 dark:bg-green-500/80 rounded-sm"></div>
+                      <div className="w-3 h-3 bg-green-500 dark:bg-green-500/90 rounded-sm"></div>
                       <span className="text-xs text-muted-foreground">5+</span>
                     </div>
                   </div>
