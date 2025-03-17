@@ -389,9 +389,9 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh]">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary mb-4"></div>
-        <p className="text-xl text-muted-foreground">Loading flashcards...</p>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] max-w-7xl mx-auto px-6 py-12">
+        <div className="animate-spin rounded-full h-20 w-20 border-t-2 border-b-2 border-primary mb-6"></div>
+        <p className="text-2xl text-muted-foreground">Loading flashcards...</p>
       </div>
     );
   }
@@ -436,48 +436,49 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
   // Show session complete screen
   if (sessionComplete) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh]">
-        <Card className="w-full max-w-xl">
-          <CardHeader className="pb-6">
-            <CardTitle className="text-2xl md:text-3xl text-center">Session Complete!</CardTitle>
-            <CardDescription className="text-center text-base mt-2">
+      <div className="flex flex-col items-center justify-center min-h-[70vh] max-w-7xl mx-auto px-6 py-12">
+        <Card className="w-full max-w-2xl shadow-lg">
+          <CardHeader className="pb-8">
+            <CardTitle className="text-3xl md:text-4xl text-center">Session Complete!</CardTitle>
+            <CardDescription className="text-center text-lg mt-3">
               You've completed your study session.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-8 pb-8">
             <div className="grid grid-cols-3 gap-6 text-center">
               <div className="p-6 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                <p className="text-3xl font-bold text-green-600 dark:text-green-400">{sessionStats.correct}</p>
-                <p className="text-base text-muted-foreground mt-2">Correct</p>
+                <p className="text-4xl font-bold text-green-600 dark:text-green-400">{sessionStats.correct}</p>
+                <p className="text-lg text-muted-foreground mt-2">Correct</p>
               </div>
               <div className="p-6 bg-red-100 dark:bg-red-900/20 rounded-lg">
-                <p className="text-3xl font-bold text-red-600 dark:text-red-400">{sessionStats.incorrect}</p>
-                <p className="text-base text-muted-foreground mt-2">Incorrect</p>
+                <p className="text-4xl font-bold text-red-600 dark:text-red-400">{sessionStats.incorrect}</p>
+                <p className="text-lg text-muted-foreground mt-2">Incorrect</p>
               </div>
               <div className="p-6 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
-                <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{sessionStats.skipped}</p>
-                <p className="text-base text-muted-foreground mt-2">Skipped</p>
+                <p className="text-4xl font-bold text-yellow-600 dark:text-yellow-400">{sessionStats.skipped}</p>
+                <p className="text-lg text-muted-foreground mt-2">Skipped</p>
               </div>
             </div>
             
-            <div className="p-6 bg-primary/10 rounded-lg text-center">
-              <p className="text-3xl font-bold">
+            <div className="p-8 bg-primary/10 rounded-lg text-center">
+              <p className="text-4xl font-bold">
                 {sessionStats.correct > 0 
                   ? Math.round((sessionStats.correct / (sessionStats.total - sessionStats.skipped)) * 100)
                   : 0}%
               </p>
-              <p className="text-base text-muted-foreground mt-2">Accuracy</p>
+              <p className="text-lg text-muted-foreground mt-2">Accuracy</p>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-between pt-4 pb-6">
-            <Button asChild variant="outline" size="lg" className="px-5">
+          
+          <CardFooter className="flex justify-between pt-6 pb-8 px-8">
+            <Button asChild variant="outline" size="lg" className="px-6 h-14 text-lg">
               <Link href="/flashcards">
-                <Home className="mr-2 h-5 w-5" />
+                <Home className="mr-3 h-5 w-5" />
                 Dashboard
               </Link>
             </Button>
-            <Button onClick={restartSession} size="lg" className="px-5">
-              <RotateCcw className="mr-2 h-5 w-5" />
+            <Button onClick={restartSession} size="lg" className="px-6 h-14 text-lg">
+              <RotateCcw className="mr-3 h-5 w-5" />
               Study Again
             </Button>
           </CardFooter>
@@ -490,26 +491,26 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
   const currentCard = flashcards[currentIndex];
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center max-w-7xl mx-auto px-6 py-12">
       {/* Header with topic name if available */}
       {topicName && (
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl md:text-3xl font-bold mb-2">{topicName}</h1>
-          <p className="text-muted-foreground text-lg">Studying {flashcards.length} flashcards</p>
+        <div className="mb-12 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold mb-3">{topicName}</h1>
+          <p className="text-muted-foreground text-xl">Studying {flashcards.length} flashcards</p>
         </div>
       )}
       
       {/* Progress bar */}
-      <div className="w-full max-w-3xl mb-8">
-        <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
+      <div className="w-full max-w-4xl mb-12">
+        <div className="w-full h-4 bg-muted rounded-full overflow-hidden">
           <div 
             className="h-full bg-primary rounded-full transition-all duration-300 ease-in-out" 
             style={{ width: `${calculateProgress()}%` }}
           />
         </div>
-        <div className="flex justify-between mt-3 text-base text-muted-foreground">
+        <div className="flex justify-between mt-4 text-lg text-muted-foreground">
           <span>Card {currentIndex + 1} of {flashcards.length}</span>
-          <span className="flex gap-3">
+          <span className="flex gap-6">
             <span className="text-green-500 font-medium">{sessionStats.correct} correct</span>
             <span className="text-red-500 font-medium">{sessionStats.incorrect} incorrect</span>
             <span className="text-yellow-500 font-medium">{sessionStats.skipped} skipped</span>
@@ -519,70 +520,70 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
       
       {/* Flashcard */}
       <div 
-        className={`w-full max-w-3xl perspective-1000 ${isZoomed ? 'scale-110' : ''} transition-transform duration-300`}
-        style={{ height: '400px' }}
+        className={`w-full max-w-4xl perspective-1000 ${isZoomed ? 'scale-110' : ''} transition-transform duration-300`}
+        style={{ height: '450px' }}
       >
         <div 
           className={`relative w-full h-full transform-style-3d transition-transform duration-500 ${flipped ? 'rotate-y-180' : ''}`}
           onClick={handleFlip}
         >
           {/* Front of card (Question) */}
-          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-8 flex flex-col">
-            <div className="flex justify-between items-start mb-4">
-              <Badge variant="outline" className="text-xs px-2 py-1">
+          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-10 flex flex-col">
+            <div className="flex justify-between items-start mb-6">
+              <Badge variant="outline" className="text-sm px-3 py-1">
                 Question
               </Badge>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-8 w-8" 
+                  className="h-10 w-10" 
                   onClick={toggleZoom}
                 >
-                  {isZoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
+                  {isZoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
                 </Button>
               </div>
             </div>
             
-            <div className="flex-grow flex items-center justify-center overflow-auto">
-              <div className={`text-center ${isZoomed ? 'text-lg' : 'text-xl'} leading-relaxed`}>
+            <div className="flex-grow flex items-center justify-center overflow-auto px-4">
+              <div className={`text-center ${isZoomed ? 'text-xl' : 'text-2xl'} leading-relaxed`}>
                 {currentCard?.question}
               </div>
             </div>
             
-            <div className="mt-4 text-center text-muted-foreground text-sm">
+            <div className="mt-6 text-center text-muted-foreground text-base">
               Click to reveal answer
             </div>
           </div>
           
           {/* Back of card (Answer) */}
-          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-8 flex flex-col rotate-y-180">
-            <div className="flex justify-between items-start mb-4">
-              <Badge variant="outline" className="text-xs px-2 py-1">
+          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-10 flex flex-col rotate-y-180">
+            <div className="flex justify-between items-start mb-6">
+              <Badge variant="outline" className="text-sm px-3 py-1">
                 Answer
               </Badge>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-8 w-8" 
+                  className="h-10 w-10" 
                   onClick={toggleZoom}
                 >
-                  {isZoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
+                  {isZoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
                 </Button>
               </div>
             </div>
             
-            <div className="flex-grow flex items-center justify-center overflow-auto">
-              <div className={`text-center ${isZoomed ? 'text-lg' : 'text-xl'} leading-relaxed`}>
+            <div className="flex-grow flex items-center justify-center overflow-auto px-4">
+              <div className={`text-center ${isZoomed ? 'text-xl' : 'text-2xl'} leading-relaxed`}>
                 {currentCard?.answer}
               </div>
             </div>
             
             {currentCard?.explanation && (
-              <div className="mt-4 p-4 bg-muted rounded-lg">
-                <p className="text-sm font-medium mb-1">Explanation:</p>
-                <p className="text-sm">{currentCard.explanation}</p>
+              <div className="mt-6 p-5 bg-muted rounded-lg">
+                <p className="text-base font-medium mb-2">Explanation:</p>
+                <p className="text-base">{currentCard.explanation}</p>
               </div>
             )}
           </div>
@@ -594,12 +595,12 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-6 p-6 bg-card rounded-xl shadow-md w-full max-w-3xl"
+          className="mt-10 p-8 bg-card rounded-xl shadow-md w-full max-w-4xl"
         >
-          <h3 className="text-lg font-medium text-center mb-4">
+          <h3 className="text-xl font-medium text-center mb-6">
             How confident are you with this card?
             {currentResult && (
-              <span className={`ml-2 inline-block px-2 py-1 rounded text-sm ${
+              <span className={`ml-3 inline-block px-3 py-1 rounded text-base ${
                 currentResult === 'correct' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
                 currentResult === 'incorrect' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 
                 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
@@ -610,23 +611,23 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
               </span>
             )}
           </h3>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-6">
             {[1, 2, 3, 4, 5].map((rating) => (
               <Button
                 key={rating}
                 variant={confidenceRating === rating ? "default" : "outline"}
-                className="flex flex-col items-center p-4 h-auto"
+                className="flex flex-col items-center p-5 h-auto"
                 onClick={() => handleConfidenceRating(rating)}
               >
                 <div className="flex">
                   {Array.from({ length: rating }).map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-current" />
+                    <Star key={i} className="h-6 w-6 fill-current" />
                   ))}
                   {Array.from({ length: 5 - rating }).map((_, i) => (
-                    <Star key={i + rating} className="h-5 w-5" />
+                    <Star key={i + rating} className="h-6 w-6" />
                   ))}
                 </div>
-                <span className="mt-2 text-xs">
+                <span className="mt-3 text-sm">
                   {rating === 1 ? "Not at all" : 
                    rating === 2 ? "Slightly" : 
                    rating === 3 ? "Somewhat" : 
@@ -644,65 +645,65 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-3xl mt-6 flex justify-center gap-4"
+          className="w-full max-w-4xl mt-10 flex justify-center gap-6"
         >
           <Button 
             variant="destructive" 
             size="lg" 
-            className="px-6"
+            className="px-8 h-14 text-lg"
             onClick={() => handleMarkCard('incorrect')}
           >
-            <X className="mr-2 h-5 w-5" />
+            <X className="mr-3 h-6 w-6" />
             Incorrect
           </Button>
           <Button 
             variant="outline" 
             size="lg" 
-            className="px-6"
+            className="px-8 h-14 text-lg"
             onClick={() => handleMarkCard('skip')}
           >
-            <SkipForward className="mr-2 h-5 w-5" />
+            <SkipForward className="mr-3 h-6 w-6" />
             Skip
           </Button>
           <Button 
             variant="default" 
             size="lg" 
-            className="px-6"
+            className="px-8 h-14 text-lg"
             onClick={() => handleMarkCard('correct')}
           >
-            <Check className="mr-2 h-5 w-5" />
+            <Check className="mr-3 h-6 w-6" />
             Correct
           </Button>
         </motion.div>
       )}
       
       {/* Navigation buttons */}
-      <div className="w-full max-w-3xl mt-8 flex justify-between">
-        <div className="flex gap-3">
-          <Button variant="outline" size="lg" asChild className="px-5">
+      <div className="w-full max-w-4xl mt-12 flex justify-between">
+        <div className="flex gap-4">
+          <Button variant="outline" size="lg" asChild className="px-6 h-14 text-lg">
             <Link href="/flashcards">
-              <ArrowLeft className="mr-2 h-5 w-5" />
+              <ArrowLeft className="mr-3 h-5 w-5" />
               Back to Dashboard
             </Link>
           </Button>
           <Button 
             variant="outline" 
             size="lg" 
-            className="px-5"
+            className="px-6 h-14 text-lg"
             onClick={moveToPreviousCard}
             disabled={currentIndex === 0 || showConfidenceRating}
           >
-            <ChevronLeft className="mr-2 h-5 w-5" />
+            <ChevronLeft className="mr-3 h-5 w-5" />
             Previous
           </Button>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" size="lg" onClick={shuffleDeck} className="px-5">
-            <Shuffle className="mr-2 h-5 w-5" />
+        <div className="flex gap-4">
+          <Button variant="outline" size="lg" onClick={shuffleDeck} className="px-6 h-14 text-lg">
+            <Shuffle className="mr-3 h-5 w-5" />
             Shuffle
           </Button>
-          <Button variant="outline" size="lg" onClick={restartSession} className="px-5">
-            <RotateCcw className="mr-2 h-5 w-5" />
+          <Button variant="outline" size="lg" onClick={restartSession} className="px-6 h-14 text-lg">
+            <RotateCcw className="mr-3 h-5 w-5" />
             Restart
           </Button>
         </div>

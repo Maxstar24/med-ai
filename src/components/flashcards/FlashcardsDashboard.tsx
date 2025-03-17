@@ -502,25 +502,25 @@ const FlashcardsDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-8 max-w-7xl mx-auto px-4 py-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Flashcards</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Flashcards</h1>
+          <p className="text-muted-foreground text-lg">
             Create, organize, and study flashcards to enhance your medical knowledge
           </p>
         </div>
         
-        <div className="flex flex-wrap gap-2">
-          <Button asChild>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild size="lg" className="px-6">
             <Link href="/flashcards/create">
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-5 w-5" />
               Create Flashcards
             </Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" size="lg" className="px-6">
             <Link href="/flashcards/study">
-              <BookOpen className="mr-2 h-4 w-4" />
+              <BookOpen className="mr-2 h-5 w-5" />
               Study Now
             </Link>
           </Button>
@@ -528,18 +528,18 @@ const FlashcardsDashboard = () => {
       </div>
       
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="sets">Sets</TabsTrigger>
-          <TabsTrigger value="all">All Cards</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsTrigger value="dashboard" className="text-base py-3">Dashboard</TabsTrigger>
+          <TabsTrigger value="sets" className="text-base py-3">Sets</TabsTrigger>
+          <TabsTrigger value="all" className="text-base py-3">All Cards</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="dashboard" className="space-y-6">
+        <TabsContent value="dashboard" className="space-y-8">
           {/* Stats Cards */}
           {renderStatCards()}
           
           {/* Study Activity and Quick Actions */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Study Activity */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -547,21 +547,21 @@ const FlashcardsDashboard = () => {
               transition={{ delay: 0.5 }}
               className="lg:col-span-2"
             >
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Calendar className="mr-2 h-5 w-5" />
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center text-xl">
+                    <Calendar className="mr-3 h-5 w-5" />
                     Study Activity
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-base">
                     Your flashcard study sessions over the past 30 days
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pb-6">
                   {loadingStats ? (
-                    <div className="h-40 w-full bg-muted animate-pulse rounded" />
+                    <div className="h-48 w-full bg-muted animate-pulse rounded" />
                   ) : (
-                    <div className="h-40 flex items-end gap-1">
+                    <div className="h-48 flex items-end gap-1">
                       {stats?.last30Days.slice(0, 30).reverse().map((day, i) => (
                         <div 
                           key={i} 
@@ -596,24 +596,24 @@ const FlashcardsDashboard = () => {
                     </div>
                   )}
                 </CardContent>
-                <CardFooter className="flex justify-between">
-                  <div className="flex gap-4">
+                <CardFooter className="flex flex-col sm:flex-row justify-between gap-4 pt-2 pb-6 px-6">
+                  <div className="flex gap-6">
                     <div>
-                      <p className="text-sm font-medium">Total Sessions</p>
+                      <p className="text-sm font-medium text-muted-foreground">Total Sessions</p>
                       <p className="text-2xl font-bold">{stats?.totalSessions || 0}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Cards Studied</p>
+                      <p className="text-sm font-medium text-muted-foreground">Cards Studied</p>
                       <p className="text-2xl font-bold">
                         {(stats?.totalCorrect || 0) + (stats?.totalIncorrect || 0) + (stats?.totalSkipped || 0)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Time Spent</p>
+                      <p className="text-sm font-medium text-muted-foreground">Time Spent</p>
                       <p className="text-2xl font-bold">{formatTimeSpent(stats?.totalTimeSpent || 0)}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3 mt-2 sm:mt-0">
                     <div className="flex gap-1 items-center">
                       <div className="w-3 h-3 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-sm"></div>
                       <span className="text-xs text-muted-foreground">0</span>
@@ -641,41 +641,41 @@ const FlashcardsDashboard = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
             >
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>
+              <Card className="h-full shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl">Quick Actions</CardTitle>
+                  <CardDescription className="text-base">
                     Create and study flashcards
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button asChild className="w-full justify-start" variant="default">
+                <CardContent className="space-y-4 pb-6">
+                  <Button asChild className="w-full justify-start h-12 text-base" variant="default">
                     <Link href="/flashcards/study">
-                      <BookOpen className="mr-2 h-4 w-4" />
+                      <BookOpen className="mr-3 h-5 w-5" />
                       Study Due Cards
                     </Link>
                   </Button>
-                  <Button asChild className="w-full justify-start" variant="default">
+                  <Button asChild className="w-full justify-start h-12 text-base" variant="default">
                     <Link href="/flashcards/all?view=sets">
-                      <Folder className="mr-2 h-4 w-4" />
+                      <Folder className="mr-3 h-5 w-5" />
                       View All Sets
                     </Link>
                   </Button>
-                  <Button asChild className="w-full justify-start" variant="outline">
+                  <Button asChild className="w-full justify-start h-12 text-base" variant="outline">
                     <Link href="/flashcards/create">
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="mr-3 h-5 w-5" />
                       Create Manually
                     </Link>
                   </Button>
-                  <Button asChild className="w-full justify-start" variant="outline">
+                  <Button asChild className="w-full justify-start h-12 text-base" variant="outline">
                     <Link href="/flashcards/create?ai=true">
-                      <Lightbulb className="mr-2 h-4 w-4" />
+                      <Lightbulb className="mr-3 h-5 w-5" />
                       Generate with AI
                     </Link>
                   </Button>
-                  <Button asChild className="w-full justify-start" variant="outline">
+                  <Button asChild className="w-full justify-start h-12 text-base" variant="outline">
                     <Link href="/flashcards/create?pdf=true">
-                      <FileUp className="mr-2 h-4 w-4" />
+                      <FileUp className="mr-3 h-5 w-5" />
                       Import from PDF
                     </Link>
                   </Button>
@@ -685,79 +685,79 @@ const FlashcardsDashboard = () => {
           </div>
           
           {/* Performance Metrics */}
-          <Card className="col-span-1 md:col-span-2">
-            <CardHeader>
-              <CardTitle>Performance Metrics</CardTitle>
-              <CardDescription>
+          <Card className="col-span-1 md:col-span-2 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Performance Metrics</CardTitle>
+              <CardDescription className="text-base">
                 Track your progress and performance
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-6">
               {renderDetailedStats()}
             </CardContent>
           </Card>
         </TabsContent>
         
         <TabsContent value="sets" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Flashcard Sets</CardTitle>
-              <CardDescription>
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Flashcard Sets</CardTitle>
+              <CardDescription className="text-base">
                 Study organized sets of flashcards by topic
               </CardDescription>
-              <div className="flex items-center mt-4">
+              <div className="flex items-center mt-6">
                 <div className="relative flex-1">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search sets..."
-                    className="pl-8"
+                    className="pl-10 h-12 text-base"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <Button asChild className="ml-2">
+                <Button asChild className="ml-3 h-12 px-6">
                   <Link href="/flashcards/create?ai=true">
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className="mr-2 h-5 w-5" />
                     Create Set
                   </Link>
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-6">
               {loadingFlashcards ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
                 </div>
               ) : flashcardSets.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">You don't have any flashcard sets yet</p>
-                  <Button asChild>
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground mb-6 text-lg">You don't have any flashcard sets yet</p>
+                  <Button asChild size="lg" className="px-6">
                     <Link href="/flashcards/create?ai=true">
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="mr-2 h-5 w-5" />
                       Create Your First Set
                     </Link>
                   </Button>
                 </div>
               ) : filteredFlashcardSets.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">No flashcard sets match your search</p>
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground text-lg">No flashcard sets match your search</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {filteredFlashcardSets.map((set) => (
-                    <Card key={set.setId} className="overflow-hidden hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-2">
+                    <Card key={set.setId} className="overflow-hidden hover:shadow-md transition-shadow border-muted">
+                      <CardHeader className="pb-3">
                         <div className="flex justify-between items-start">
-                          <CardTitle>{set.topicName}</CardTitle>
+                          <CardTitle className="text-lg">{set.topicName}</CardTitle>
                           <Badge variant="outline" className="capitalize">
                             {set.difficulty}
                           </Badge>
                         </div>
-                        <CardDescription className="line-clamp-2">
+                        <CardDescription className="line-clamp-2 mt-2 text-base">
                           {set.sampleQuestion}
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="pb-2">
+                      <CardContent className="pb-3">
                         <div className="flex flex-wrap gap-2">
                           <Badge 
                             variant="outline" 
@@ -770,13 +770,14 @@ const FlashcardsDashboard = () => {
                           </Badge>
                         </div>
                       </CardContent>
-                      <CardFooter className="pt-2 flex justify-end">
+                      <CardFooter className="pt-3 pb-4 flex justify-end">
                         <Button
                           variant="default"
-                          size="sm"
+                          size="lg"
+                          className="px-5"
                           onClick={() => router.push(`/flashcards/study?setId=${set.setId}`)}
                         >
-                          <BookOpen className="h-4 w-4 mr-2" />
+                          <BookOpen className="h-5 w-5 mr-2" />
                           Study Set
                         </Button>
                       </CardFooter>
@@ -789,70 +790,70 @@ const FlashcardsDashboard = () => {
         </TabsContent>
         
         <TabsContent value="all" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Flashcards</CardTitle>
-              <CardDescription>
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">All Flashcards</CardTitle>
+              <CardDescription className="text-base">
                 Manage your flashcards collection
               </CardDescription>
-              <div className="flex items-center mt-4">
+              <div className="flex items-center mt-6">
                 <div className="relative flex-1">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search flashcards..."
-                    className="pl-8"
+                    className="pl-10 h-12 text-base"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <Button asChild className="ml-2">
+                <Button asChild className="ml-3 h-12 px-6">
                   <Link href="/flashcards/create">
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className="mr-2 h-5 w-5" />
                     Create
                   </Link>
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-6">
               {loadingFlashcards ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
                 </div>
               ) : flashcardSets.length === 0 && flashcards.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">You don't have any flashcards yet</p>
-                  <Button asChild>
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground mb-6 text-lg">You don't have any flashcards yet</p>
+                  <Button asChild size="lg" className="px-6">
                     <Link href="/flashcards/create">
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="mr-2 h-5 w-5" />
                       Create Your First Flashcard
                     </Link>
                   </Button>
                 </div>
               ) : filteredFlashcardSets.length === 0 && filteredFlashcards.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">No flashcards match your search</p>
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground text-lg">No flashcards match your search</p>
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-8">
                   {/* Flashcard Sets Section */}
                   {filteredFlashcardSets.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-medium mb-3">Flashcard Sets</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <h3 className="text-xl font-medium mb-4">Flashcard Sets</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {filteredFlashcardSets.map((set) => (
-                          <Card key={set.setId} className="overflow-hidden hover:shadow-md transition-shadow">
-                            <CardHeader className="pb-2">
+                          <Card key={set.setId} className="overflow-hidden hover:shadow-md transition-shadow border-muted">
+                            <CardHeader className="pb-3">
                               <div className="flex justify-between items-start">
-                                <CardTitle>{set.topicName}</CardTitle>
+                                <CardTitle className="text-lg">{set.topicName}</CardTitle>
                                 <Badge variant="outline" className="capitalize">
                                   {set.difficulty}
                                 </Badge>
                               </div>
-                              <CardDescription className="line-clamp-2">
+                              <CardDescription className="line-clamp-2 mt-2 text-base">
                                 {set.sampleQuestion}
                               </CardDescription>
                             </CardHeader>
-                            <CardContent className="pb-2">
+                            <CardContent className="pb-3">
                               <div className="flex flex-wrap gap-2">
                                 <Badge 
                                   variant="outline" 
@@ -865,13 +866,14 @@ const FlashcardsDashboard = () => {
                                 </Badge>
                               </div>
                             </CardContent>
-                            <CardFooter className="pt-2 flex justify-end">
+                            <CardFooter className="pt-3 pb-4 flex justify-end">
                               <Button
                                 variant="default"
-                                size="sm"
+                                size="lg"
+                                className="px-5"
                                 onClick={() => router.push(`/flashcards/study?setId=${set.setId}`)}
                               >
-                                <BookOpen className="h-4 w-4 mr-2" />
+                                <BookOpen className="h-5 w-5 mr-2" />
                                 Study Set
                               </Button>
                             </CardFooter>
@@ -884,14 +886,14 @@ const FlashcardsDashboard = () => {
                   {/* Individual Flashcards Section */}
                   {filteredFlashcards.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-medium mb-3">Individual Flashcards</h3>
-                      <div className="space-y-4">
+                      <h3 className="text-xl font-medium mb-4">Individual Flashcards</h3>
+                      <div className="space-y-5">
                         {filteredFlashcards.map((card) => (
-                          <div key={card._id} className="border rounded-lg p-4 hover:bg-accent/50 transition-colors">
-                            <div className="flex justify-between items-start mb-2">
+                          <div key={card._id} className="border rounded-lg p-5 hover:bg-accent/50 transition-colors">
+                            <div className="flex justify-between items-start mb-3">
                               <div className="flex-1">
-                                <h3 className="font-medium">{card.question}</h3>
-                                <p className="text-sm text-muted-foreground mt-1">{card.answer}</p>
+                                <h3 className="font-medium text-lg">{card.question}</h3>
+                                <p className="text-base text-muted-foreground mt-2">{card.answer}</p>
                               </div>
                               <div className="flex items-center gap-2 ml-4">
                                 <Button
@@ -899,11 +901,12 @@ const FlashcardsDashboard = () => {
                                   size="icon"
                                   onClick={() => toggleVisibility(card._id, card.isPublic)}
                                   title={card.isPublic ? "Make Private" : "Make Public"}
+                                  className="h-10 w-10"
                                 >
                                   {card.isPublic ? (
-                                    <Eye className="h-4 w-4 text-green-500" />
+                                    <Eye className="h-5 w-5 text-green-500" />
                                   ) : (
-                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                    <EyeOff className="h-5 w-5 text-muted-foreground" />
                                   )}
                                 </Button>
                                 <Button
@@ -911,31 +914,32 @@ const FlashcardsDashboard = () => {
                                   size="icon"
                                   onClick={() => router.push(`/flashcards/edit/${card._id}`)}
                                   title="Edit"
+                                  className="h-10 w-10"
                                 >
-                                  <Edit className="h-4 w-4" />
+                                  <Edit className="h-5 w-5" />
                                 </Button>
                               </div>
                             </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
+                            <div className="flex flex-wrap gap-2 mt-3">
                               <Badge 
                                 variant="outline" 
-                                className={`bg-${card.category?.color || 'gray'}-100 text-${card.category?.color || 'gray'}-800 dark:bg-${card.category?.color || 'gray'}-900/20 dark:text-${card.category?.color || 'gray'}-400`}
+                                className={`bg-${card.category?.color || 'gray'}-100 text-${card.category?.color || 'gray'}-800 dark:bg-${card.category?.color || 'gray'}-900/20 dark:text-${card.category?.color || 'gray'}-400 px-3 py-1`}
                               >
                                 {card.category?.name || 'Uncategorized'}
                               </Badge>
-                              <Badge variant={card.isPublic ? "default" : "outline"}>
+                              <Badge variant={card.isPublic ? "default" : "outline"} className="px-3 py-1">
                                 {card.isPublic ? "Public" : "Private"}
                               </Badge>
-                              <Badge variant="outline" className="capitalize">
+                              <Badge variant="outline" className="capitalize px-3 py-1">
                                 {card.difficulty}
                               </Badge>
                               {card.tags.slice(0, 3).map((tag, i) => (
-                                <Badge key={i} variant="secondary">
+                                <Badge key={i} variant="secondary" className="px-3 py-1">
                                   {tag}
                                 </Badge>
                               ))}
                               {card.tags.length > 3 && (
-                                <Badge variant="secondary">+{card.tags.length - 3}</Badge>
+                                <Badge variant="secondary" className="px-3 py-1">+{card.tags.length - 3}</Badge>
                               )}
                             </div>
                           </div>
@@ -947,13 +951,13 @@ const FlashcardsDashboard = () => {
               )}
             </CardContent>
             {(flashcards.length > 0 || flashcardSets.length > 0) && (
-              <CardFooter className="flex justify-between">
-                <p className="text-sm text-muted-foreground">
+              <CardFooter className="flex justify-between pt-2 pb-6 px-6">
+                <p className="text-base text-muted-foreground">
                   Showing {filteredFlashcardSets.length} sets and {filteredFlashcards.length} individual cards
                 </p>
-                <Button variant="outline" asChild>
+                <Button variant="outline" asChild size="lg" className="px-6">
                   <Link href="/flashcards/study">
-                    <BookOpen className="mr-2 h-4 w-4" />
+                    <BookOpen className="mr-2 h-5 w-5" />
                     Study All
                   </Link>
                 </Button>
