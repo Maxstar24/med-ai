@@ -569,16 +569,18 @@ const FlashcardsDashboard = () => {
                           title={`${day.date}: ${day.count} sessions`}
                         >
                           <div 
-                            className={`w-full rounded-sm hover:bg-primary/40 transition-colors ${
+                            className={`w-full rounded-sm hover:opacity-80 transition-colors ${
                               day.count === 0 
-                                ? 'bg-gray-100 dark:bg-gray-800' 
+                                ? 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700' 
                                 : day.count === 1 
-                                ? 'bg-primary/20' 
+                                ? 'bg-green-100 dark:bg-green-900/20' 
                                 : day.count === 2 
-                                ? 'bg-primary/40' 
+                                ? 'bg-green-200 dark:bg-green-800/30' 
                                 : day.count === 3 
-                                ? 'bg-primary/60' 
-                                : 'bg-primary/80'
+                                ? 'bg-green-300 dark:bg-green-700/40' 
+                                : day.count === 4 
+                                ? 'bg-green-400 dark:bg-green-600/60' 
+                                : 'bg-green-500 dark:bg-green-500/80'
                             }`}
                             style={{ 
                               height: day.count ? `${Math.min(100, day.count * 15 + 20)}%` : '10%'
@@ -609,6 +611,24 @@ const FlashcardsDashboard = () => {
                     <div>
                       <p className="text-sm font-medium">Time Spent</p>
                       <p className="text-2xl font-bold">{formatTimeSpent(stats?.totalTimeSpent || 0)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1 items-center">
+                      <div className="w-3 h-3 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-sm"></div>
+                      <span className="text-xs text-muted-foreground">0</span>
+                    </div>
+                    <div className="flex gap-1 items-center">
+                      <div className="w-3 h-3 bg-green-100 dark:bg-green-900/20 rounded-sm"></div>
+                      <span className="text-xs text-muted-foreground">1</span>
+                    </div>
+                    <div className="flex gap-1 items-center">
+                      <div className="w-3 h-3 bg-green-300 dark:bg-green-700/40 rounded-sm"></div>
+                      <span className="text-xs text-muted-foreground">3</span>
+                    </div>
+                    <div className="flex gap-1 items-center">
+                      <div className="w-3 h-3 bg-green-500 dark:bg-green-500/80 rounded-sm"></div>
+                      <span className="text-xs text-muted-foreground">5+</span>
                     </div>
                   </div>
                 </CardFooter>
