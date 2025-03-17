@@ -569,15 +569,21 @@ const FlashcardsDashboard = () => {
                           title={`${day.date}: ${day.count} sessions`}
                         >
                           <div 
-                            className="w-full bg-primary/20 rounded-sm hover:bg-primary/30 transition-colors"
+                            className={`w-full rounded-sm hover:bg-primary/40 transition-colors ${
+                              day.count === 0 
+                                ? 'bg-gray-100 dark:bg-gray-800' 
+                                : day.count === 1 
+                                ? 'bg-primary/20' 
+                                : day.count === 2 
+                                ? 'bg-primary/40' 
+                                : day.count === 3 
+                                ? 'bg-primary/60' 
+                                : 'bg-primary/80'
+                            }`}
                             style={{ 
-                              height: day.count ? `${Math.min(100, day.count * 20)}%` : '4px'
+                              height: day.count ? `${Math.min(100, day.count * 15 + 20)}%` : '10%'
                             }}
-                          >
-                            {day.count > 0 && (
-                              <div className="w-full bg-primary rounded-sm" style={{ height: '4px' }} />
-                            )}
-                          </div>
+                          />
                           {i % 5 === 0 && (
                             <span className="text-xs text-muted-foreground mt-1">
                               {new Date(day.date).getDate()}

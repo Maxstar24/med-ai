@@ -16,7 +16,8 @@ import {
   BookOpen,
   Home,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,6 +66,8 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
   });
   const [topicName, setTopicName] = useState<string | null>(null);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [showConfidenceRating, setShowConfidenceRating] = useState(false);
+  const [confidenceRating, setConfidenceRating] = useState<number>(0);
 
   // Fetch flashcards based on filter or setId
   const fetchFlashcards = useCallback(async () => {
@@ -157,136 +160,62 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
 
   // Handle card flip
   const handleFlip = () => {
-    setFlipped(!flipped);
+    if (!flipped) {
+      setFlipped(true);
+    } else {
+      // When card is already flipped, show confidence rating
+      setShowConfidenceRating(true);
+    }
   };
 
-  // Handle marking a card as correct
-  const handleCorrect = async () => {
-    if (currentIndex >= flashcards.length) return;
+  // Handle confidence rating selection
+  const handleConfidenceRating = async (rating: number) => {
+    setConfidenceRating(rating);
     
     try {
-      const token = await refreshToken();
+      if (!user) return;
+      
+      const token = await user.getIdToken(true);
       if (!token) {
         throw new Error('Failed to get authentication token');
       }
       
-      // Update the flashcard in the database
-      await fetch('/api/flashcards', {
+      // Update the flashcard's confidence level
+      await fetch(`/api/flashcards/${flashcards[currentIndex]._id}/confidence`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          id: flashcards[currentIndex]._id,
-          confidenceLevel: Math.min(flashcards[currentIndex].confidenceLevel + 1, 5),
-          reviewResult: 'correct'
-        })
+        body: JSON.stringify({ confidenceLevel: rating })
       });
       
-      // Update session stats
-      setSessionStats(prev => ({
-        ...prev,
-        correct: prev.correct + 1
-      }));
+      // Update local state
+      const updatedFlashcards = [...flashcards];
+      updatedFlashcards[currentIndex] = {
+        ...updatedFlashcards[currentIndex],
+        confidenceLevel: rating
+      };
+      setFlashcards(updatedFlashcards);
       
-      // Move to the next card
-      moveToNextCard();
+      // Move to next card
+      handleNextCard(rating >= 4 ? 'correct' : rating >= 2 ? 'skip' : 'incorrect');
+      setShowConfidenceRating(false);
     } catch (error) {
-      console.error('Error updating flashcard:', error);
+      console.error('Error updating confidence level:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update flashcard',
+        description: 'Failed to update confidence level',
         variant: 'destructive'
       });
+      // Still move to next card even if update fails
+      handleNextCard(rating >= 4 ? 'correct' : rating >= 2 ? 'skip' : 'incorrect');
+      setShowConfidenceRating(false);
     }
   };
 
-  // Handle marking a card as incorrect
-  const handleIncorrect = async () => {
-    if (currentIndex >= flashcards.length) return;
-    
-    try {
-      const token = await refreshToken();
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      // Update the flashcard in the database
-      await fetch('/api/flashcards', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          id: flashcards[currentIndex]._id,
-          confidenceLevel: Math.max(flashcards[currentIndex].confidenceLevel - 1, 1),
-          reviewResult: 'incorrect'
-        })
-      });
-      
-      // Update session stats
-      setSessionStats(prev => ({
-        ...prev,
-        incorrect: prev.incorrect + 1
-      }));
-      
-      // Move to the next card
-      moveToNextCard();
-    } catch (error) {
-      console.error('Error updating flashcard:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update flashcard',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  // Handle skipping a card
-  const handleSkip = async () => {
-    if (currentIndex >= flashcards.length) return;
-    
-    try {
-      const token = await refreshToken();
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      // Update the flashcard in the database
-      await fetch('/api/flashcards', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          id: flashcards[currentIndex]._id,
-          reviewResult: 'skipped'
-        })
-      });
-      
-      // Update session stats
-      setSessionStats(prev => ({
-        ...prev,
-        skipped: prev.skipped + 1
-      }));
-      
-      // Move to the next card
-      moveToNextCard();
-    } catch (error) {
-      console.error('Error updating flashcard:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update flashcard',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  // Move to the next card
-  const moveToNextCard = () => {
+  // Handle next card
+  const handleNextCard = (result: 'correct' | 'incorrect' | 'skip') => {
     // Reset flip state
     setFlipped(false);
     
@@ -535,153 +464,156 @@ const FlashcardStudy: React.FC<FlashcardStudyProps> = ({ filter, setId }) => {
       </div>
       
       {/* Flashcard */}
-      <div className="w-full max-w-3xl perspective-1000">
+      <div 
+        className={`w-full max-w-3xl perspective-1000 ${isZoomed ? 'scale-110' : ''} transition-transform duration-300`}
+        style={{ height: '400px' }}
+      >
         <div 
-          className={`relative w-full min-h-[500px] md:h-[550px] cursor-pointer transition-transform duration-500 transform-style-3d ${flipped ? 'rotate-y-180' : ''}`}
+          className={`relative w-full h-full transform-style-3d transition-transform duration-500 ${flipped ? 'rotate-y-180' : ''}`}
           onClick={handleFlip}
         >
-          {/* Front side (Question) */}
-          <div className={`absolute w-full h-full backface-hidden ${flipped ? 'invisible' : ''}`}>
-            <Card className="w-full h-full flex flex-col">
-              <CardHeader className="pb-2 md:pb-4">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl md:text-2xl">Question</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8" 
-                      onClick={toggleZoom}
-                      title={isZoomed ? "Zoom out" : "Zoom in"}
-                    >
-                      {isZoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
-                    </Button>
-                    <Badge variant="outline" className="capitalize px-3 py-1">
-                      {currentCard.difficulty}
-                    </Badge>
-                  </div>
-                </div>
-                <CardDescription className="text-base mt-1">
-                  Click the card to see the answer
-                </CardDescription>
-              </CardHeader>
-              <CardContent className={`flex-grow flex items-center justify-center overflow-y-auto px-6 md:px-8 ${isZoomed ? 'p-4' : ''}`}>
-                <p 
-                  className={`text-center ${isZoomed ? 'max-w-full' : ''}`} 
-                  style={{ 
-                    fontSize: isZoomed 
-                      ? '1.1rem' 
-                      : currentCard.question.length > 300 
-                        ? '1.05rem' 
-                        : currentCard.question.length > 200 
-                          ? '1.2rem' 
-                          : '1.35rem',
-                    lineHeight: '1.6'
-                  }}
+          {/* Front of card (Question) */}
+          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-8 flex flex-col">
+            <div className="flex justify-between items-start mb-4">
+              <Badge variant="outline" className="text-xs px-2 py-1">
+                Question
+              </Badge>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8" 
+                  onClick={toggleZoom}
                 >
-                  {currentCard.question}
-                </p>
-              </CardContent>
-              <CardFooter className="flex flex-wrap gap-2 pt-4 pb-6">
-                {currentCard.category && (
-                  <Badge 
-                    variant="outline" 
-                    className={`bg-${currentCard.category.color || 'gray'}-100 text-${currentCard.category.color || 'gray'}-800 dark:bg-${currentCard.category.color || 'gray'}-900/20 dark:text-${currentCard.category.color || 'gray'}-400 px-3 py-1`}
-                  >
-                    {currentCard.category.name}
-                  </Badge>
-                )}
-                {currentCard.tags.map((tag, index) => (
-                  <Badge key={index} variant="secondary" className="px-3 py-1">
-                    {tag}
-                  </Badge>
-                ))}
-              </CardFooter>
-            </Card>
+                  {isZoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex-grow flex items-center justify-center overflow-auto">
+              <div className={`text-center ${isZoomed ? 'text-lg' : 'text-xl'} leading-relaxed`}>
+                {currentCard?.question}
+              </div>
+            </div>
+            
+            <div className="mt-4 text-center text-muted-foreground text-sm">
+              Click to reveal answer
+            </div>
           </div>
           
-          {/* Back side (Answer) */}
-          <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${!flipped ? 'invisible' : ''}`}>
-            <Card className="w-full h-full flex flex-col">
-              <CardHeader className="pb-2 md:pb-4">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl md:text-2xl">Answer</CardTitle>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8" 
-                    onClick={toggleZoom}
-                    title={isZoomed ? "Zoom out" : "Zoom in"}
-                  >
-                    {isZoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <CardDescription className="text-base mt-1">
-                  Click the card to see the question
-                </CardDescription>
-              </CardHeader>
-              <CardContent className={`flex-grow flex flex-col justify-center overflow-y-auto px-6 md:px-8 ${isZoomed ? 'p-4' : ''}`}>
-                <p 
-                  className={`text-center mb-6 ${isZoomed ? 'max-w-full' : ''}`} 
-                  style={{ 
-                    fontSize: isZoomed 
-                      ? '1.1rem' 
-                      : currentCard.answer.length > 300 
-                        ? '1.05rem' 
-                        : currentCard.answer.length > 200 
-                          ? '1.2rem' 
-                          : '1.35rem',
-                    lineHeight: '1.6'
-                  }}
+          {/* Back of card (Answer) */}
+          <div className="absolute w-full h-full backface-hidden bg-card rounded-xl shadow-lg p-8 flex flex-col rotate-y-180">
+            <div className="flex justify-between items-start mb-4">
+              <Badge variant="outline" className="text-xs px-2 py-1">
+                Answer
+              </Badge>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8" 
+                  onClick={toggleZoom}
                 >
-                  {currentCard.answer}
-                </p>
-                {currentCard.explanation && (
-                  <div className="mt-4 p-5 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-2">Explanation:</p>
-                    <p className={`text-sm ${isZoomed ? '' : 'max-h-[180px]'} overflow-y-auto leading-relaxed`}>
-                      {currentCard.explanation}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="flex justify-between pt-4 pb-6">
-                <div className="flex gap-3">
-                  <Button 
-                    variant="destructive" 
-                    size="default" 
-                    onClick={(e) => { e.stopPropagation(); handleIncorrect(); }}
-                    className="px-4"
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Incorrect
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="default" 
-                    onClick={(e) => { e.stopPropagation(); handleSkip(); }}
-                    className="px-4"
-                  >
-                    <SkipForward className="mr-2 h-4 w-4" />
-                    Skip
-                  </Button>
-                  <Button 
-                    variant="default" 
-                    size="default" 
-                    onClick={(e) => { e.stopPropagation(); handleCorrect(); }}
-                    className="bg-green-600 hover:bg-green-700 px-4"
-                  >
-                    <Check className="mr-2 h-4 w-4" />
-                    Correct
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
+                  {isZoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex-grow flex items-center justify-center overflow-auto">
+              <div className={`text-center ${isZoomed ? 'text-lg' : 'text-xl'} leading-relaxed`}>
+                {currentCard?.answer}
+              </div>
+            </div>
+            
+            {currentCard?.explanation && (
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-1">Explanation:</p>
+                <p className="text-sm">{currentCard.explanation}</p>
+              </div>
+            )}
+            
+            <div className="mt-4 text-center text-muted-foreground text-sm">
+              {showConfidenceRating ? 'Rate your confidence' : 'Click to rate your confidence'}
+            </div>
           </div>
         </div>
       </div>
       
-      {/* Controls */}
+      {/* Confidence Rating */}
+      {showConfidenceRating && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-6 p-6 bg-card rounded-xl shadow-md w-full max-w-3xl"
+        >
+          <h3 className="text-lg font-medium text-center mb-4">How confident are you with this card?</h3>
+          <div className="flex justify-center gap-4">
+            {[1, 2, 3, 4, 5].map((rating) => (
+              <Button
+                key={rating}
+                variant={confidenceRating === rating ? "default" : "outline"}
+                className="flex flex-col items-center p-4 h-auto"
+                onClick={() => handleConfidenceRating(rating)}
+              >
+                <div className="flex">
+                  {Array.from({ length: rating }).map((_, i) => (
+                    <Star key={i} className="h-5 w-5 fill-current" />
+                  ))}
+                  {Array.from({ length: 5 - rating }).map((_, i) => (
+                    <Star key={i + rating} className="h-5 w-5" />
+                  ))}
+                </div>
+                <span className="mt-2 text-xs">
+                  {rating === 1 ? "Not at all" : 
+                   rating === 2 ? "Slightly" : 
+                   rating === 3 ? "Somewhat" : 
+                   rating === 4 ? "Very" : 
+                   "Extremely"}
+                </span>
+              </Button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+      
+      {/* Control buttons */}
+      {!showConfidenceRating && flipped && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-3xl mt-6 flex justify-center gap-4"
+        >
+          <Button 
+            variant="destructive" 
+            size="lg" 
+            className="px-6"
+            onClick={() => handleNextCard('incorrect')}
+          >
+            <X className="mr-2 h-5 w-5" />
+            Incorrect
+          </Button>
+          <Button 
+            variant="outline" 
+            size="lg" 
+            className="px-6"
+            onClick={() => handleNextCard('skip')}
+          >
+            <SkipForward className="mr-2 h-5 w-5" />
+            Skip
+          </Button>
+          <Button 
+            variant="default" 
+            size="lg" 
+            className="px-6"
+            onClick={() => handleNextCard('correct')}
+          >
+            <Check className="mr-2 h-5 w-5" />
+            Correct
+          </Button>
+        </motion.div>
+      )}
+      
+      {/* Navigation buttons */}
       <div className="w-full max-w-3xl mt-8 flex justify-between">
         <Button variant="outline" size="lg" asChild className="px-5">
           <Link href="/flashcards">
