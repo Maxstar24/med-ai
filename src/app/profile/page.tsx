@@ -34,7 +34,6 @@ export default function ProfilePage() {
     if (!authLoading && !user) {
       router.push('/login');
     } else if (user) {
-      refreshGamificationData();
       setFormData({
         name: user.name || '',
         specialty: user.profile?.specialty || '',
@@ -42,7 +41,7 @@ export default function ProfilePage() {
         bio: user.profile?.bio || ''
       });
     }
-  }, [authLoading, user, router, refreshGamificationData]);
+  }, [authLoading, user, router]);
 
   const calculateLevelProgress = () => {
     if (!gamification) return 0;
