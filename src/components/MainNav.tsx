@@ -9,8 +9,6 @@ import {
   Home, 
   BookOpen, 
   Brain, 
-  User, 
-  LogOut, 
   LogIn, 
   UserPlus,
   Layers,
@@ -18,10 +16,11 @@ import {
   BookMarked
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { UserProfile } from '@/components/UserProfile';
 
 export function MainNav() {
   const pathname = usePathname();
-  const { user, loading, logout } = useAuth();
+  const { user, loading } = useAuth();
   const [isClient, setIsClient] = useState(false);
   
   // Use useEffect to ensure we're rendering on the client side
@@ -107,23 +106,7 @@ export function MainNav() {
           {isClient && !loading && (
             <>
               {user ? (
-                <>
-                  <Link href="/profile">
-                    <Button variant="ghost" size="sm" className="flex items-center">
-                      <User className="h-4 w-4 mr-2" />
-                      Profile
-                    </Button>
-                  </Link>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => logout()}
-                    className="flex items-center"
-                  >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
-                  </Button>
-                </>
+                <UserProfile />
               ) : (
                 <>
                   <Link href="/login">
