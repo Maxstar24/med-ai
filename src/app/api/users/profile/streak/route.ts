@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeFirebaseAdmin, verifyFirebaseToken } from '@/lib/firebase-admin';
+import { connectToDatabase } from '@/lib/db';
+import User from '@/models/User';
 
 // POST /api/users/profile/streak
 export async function POST(req: NextRequest) {
@@ -36,29 +36,22 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Get user document from Firestore
-    const db = getFirestore();
-    const userRef = db.collection('users').doc(uid);
-    const userDoc = await userRef.get();
+    // Connect to MongoDB
+    await connectToDatabase();
     
-    if (!userDoc.exists) {
+    // Find user by Firebase UID
+    const user = await User.findOne({ firebaseUid: uid });
+    
+    if (!user) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    const userData = userDoc.data();
-    if (!userData) {
-      return new Response(JSON.stringify({ error: 'User data not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
     // Initialize gamification data if not exists
-    if (!userData.gamification) {
-      userData.gamification = {
+    if (!user.gamification) {
+      user.gamification = {
         xp: 0,
         level: 1,
         achievements: [],
@@ -82,13 +75,13 @@ export async function POST(req: NextRequest) {
     today.setHours(0, 0, 0, 0);
     
     // Get last active date
-    let lastActive = userData.gamification.lastActive ? new Date(userData.gamification.lastActive.toDate()) : null;
+    let lastActive = user.gamification.lastActive ? new Date(user.gamification.lastActive) : null;
     if (lastActive) {
       lastActive.setHours(0, 0, 0, 0);
     }
     
-    let currentStreak = userData.gamification.currentStreak || 0;
-    let longestStreak = userData.gamification.longestStreak || 0;
+    let currentStreak = user.gamification.currentStreak || 0;
+    let longestStreak = user.gamification.longestStreak || 0;
     let streakMilestone = false;
     let newAchievements: any[] = [];
     
@@ -116,7 +109,9 @@ export async function POST(req: NextRequest) {
       
       // Check if we've hit any streak milestones
       for (const milestone of streakMilestones) {
-        if (currentStreak === milestone.days && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
+        if (currentStreak === milestone.days && 
+            (!user.gamification.achievements || 
+             !user.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
           newAchievements.push({
             id: milestone.id,
             name: milestone.name,
@@ -131,22 +126,22 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // Prepare update object
-    const updateData: Record<string, any> = {
-      'gamification.currentStreak': currentStreak,
-      'gamification.longestStreak': longestStreak,
-      'gamification.lastActive': new Date()
-    };
+    // Update user data
+    user.gamification.currentStreak = currentStreak;
+    user.gamification.longestStreak = longestStreak;
+    user.gamification.lastActive = new Date();
     
     // Add achievements if any
     if (newAchievements.length > 0) {
-      await userRef.update({
-        ...updateData,
-        'gamification.achievements': FieldValue.arrayUnion(...newAchievements)
-      });
-    } else {
-      await userRef.update(updateData);
+      // Add new achievements to existing ones
+      if (!user.gamification.achievements) {
+        user.gamification.achievements = [];
+      }
+      user.gamification.achievements.push(...newAchievements);
     }
+    
+    // Save updated user
+    await user.save();
     
     // Return updated values
     return new Response(JSON.stringify({

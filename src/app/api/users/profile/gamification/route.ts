@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
 import { initializeFirebaseAdmin, verifyFirebaseToken } from '@/lib/firebase-admin';
+import { connectToDatabase } from '@/lib/db';
+import User from '@/models/User';
 
 interface RouteContext {
   params: {
@@ -42,28 +42,21 @@ export async function GET(req: NextRequest) {
       });
     }
     
-    // Get user document from Firestore
-    const db = getFirestore();
-    const userRef = db.collection('users').doc(uid);
-    const userDoc = await userRef.get();
+    // Connect to MongoDB
+    await connectToDatabase();
     
-    if (!userDoc.exists) {
+    // Find user by Firebase UID
+    const user = await User.findOne({ firebaseUid: uid });
+    
+    if (!user) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    const userData = userDoc.data();
-    if (!userData) {
-      return new Response(JSON.stringify({ error: 'User data not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
     // If no gamification data exists yet, return default values
-    if (!userData.gamification) {
+    if (!user.gamification) {
       return new Response(JSON.stringify({
         gamification: {
           xp: 0,
@@ -90,7 +83,7 @@ export async function GET(req: NextRequest) {
     
     // Return gamification data
     return new Response(JSON.stringify({
-      gamification: userData.gamification
+      gamification: user.gamification
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

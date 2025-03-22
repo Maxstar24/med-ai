@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeFirebaseAdmin, verifyFirebaseToken } from '@/lib/firebase-admin';
+import { connectToDatabase } from '@/lib/db';
+import User from '@/models/User';
 
 // POST /api/users/profile/study-time
 export async function POST(req: NextRequest) {
@@ -47,29 +47,22 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Get user document from Firestore
-    const db = getFirestore();
-    const userRef = db.collection('users').doc(uid);
-    const userDoc = await userRef.get();
+    // Connect to MongoDB
+    await connectToDatabase();
     
-    if (!userDoc.exists) {
+    // Find user by Firebase UID
+    const user = await User.findOne({ firebaseUid: uid });
+    
+    if (!user) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    const userData = userDoc.data();
-    if (!userData) {
-      return new Response(JSON.stringify({ error: 'User data not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
     // Initialize gamification data if not exists
-    if (!userData.gamification) {
-      userData.gamification = {
+    if (!user.gamification) {
+      user.gamification = {
         xp: 0,
         level: 1,
         achievements: [],
@@ -89,61 +82,63 @@ export async function POST(req: NextRequest) {
     }
     
     // Update study time
-    const currentStudyTime = userData.gamification.studyTime || 0;
-    const totalStudyTime = currentStudyTime + minutes;
+    const currentStudyTime = user.gamification.studyTime || 0;
+    const newStudyTime = currentStudyTime + minutes;
     
-    // Award XP: 1 XP per minute of study time
-    const gainedXP = minutes;
+    // Calculate XP: 2 XP per minute of study time
+    const xpEarned = Math.round(minutes * 2);
+    
+    // Update user data
+    user.gamification.studyTime = newStudyTime;
+    user.gamification.xp = (user.gamification.xp || 0) + xpEarned;
+    
+    // Calculate level
+    user.gamification.level = 1 + Math.floor(user.gamification.xp / 100);
     
     // Check for study time achievements
-    const newAchievements: any[] = [];
-    const studyTimeMilestones = [
-      { id: 'time-60', name: 'Hour Scholar', description: 'Study for 1 hour', minutes: 60, icon: '⏱️' },
-      { id: 'time-300', name: 'Dedicated Learner', description: 'Study for 5 hours', minutes: 300, icon: '⏰' },
-      { id: 'time-600', name: 'Study Enthusiast', description: 'Study for 10 hours', minutes: 600, icon: '⌚' },
-      { id: 'time-1200', name: 'Knowledge Devotee', description: 'Study for 20 hours', minutes: 1200, icon: '📚' },
-      { id: 'time-3000', name: 'Medical Scholar', description: 'Study for 50 hours', minutes: 3000, icon: '👨‍⚕️' }
+    const newAchievements = [];
+    
+    // Study time milestones (in minutes)
+    const timeMillestones = [
+      { id: 'time-60', name: 'Study Hour', description: 'Study for 1 hour total', minutes: 60, icon: '⏱️' },
+      { id: 'time-300', name: 'Study Dedication', description: 'Study for 5 hours total', minutes: 300, icon: '⏰' },
+      { id: 'time-600', name: 'Study Enthusiast', description: 'Study for 10 hours total', minutes: 600, icon: '🕙' },
+      { id: 'time-1800', name: 'Study Devotee', description: 'Study for 30 hours total', minutes: 1800, icon: '📚' },
+      { id: 'time-3600', name: 'Study Master', description: 'Study for 60 hours total', minutes: 3600, icon: '🧠' }
     ];
     
-    // Check if user unlocked any study time milestones
-    for (const milestone of studyTimeMilestones) {
-      if (totalStudyTime >= milestone.minutes && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
+    // Check if user unlocked any time milestones
+    for (const milestone of timeMillestones) {
+      if (newStudyTime >= milestone.minutes && 
+          (!user.gamification.achievements || 
+           !user.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
         newAchievements.push({
-          ...milestone,
-          category: 'time',
+          id: milestone.id,
+          name: milestone.name,
+          description: milestone.description,
+          category: 'study-time',
+          icon: milestone.icon,
           unlockedAt: new Date()
         });
       }
     }
     
-    // Add XP
-    const currentXP = userData.gamification.xp || 0;
-    const newXP = currentXP + gainedXP;
-    const currentLevel = userData.gamification.level || 1;
-    const newLevel = 1 + Math.floor(newXP / 100);
-    
-    // Prepare update object
-    const updateData: Record<string, any> = {
-      'gamification.studyTime': totalStudyTime,
-      'gamification.xp': newXP,
-      'gamification.level': newLevel
-    };
-    
-    // Apply updates
+    // Add achievements if any
     if (newAchievements.length > 0) {
-      await userRef.update({
-        ...updateData,
-        'gamification.achievements': FieldValue.arrayUnion(...newAchievements)
-      });
-    } else {
-      await userRef.update(updateData);
+      if (!user.gamification.achievements) {
+        user.gamification.achievements = [];
+      }
+      user.gamification.achievements.push(...newAchievements);
     }
+    
+    // Save updated user
+    await user.save();
     
     // Return updated values
     return new Response(JSON.stringify({
-      totalStudyTime,
-      xp: newXP,
-      level: newLevel,
+      studyTime: newStudyTime,
+      xpEarned,
+      level: user.gamification.level,
       newAchievements: newAchievements.length > 0 ? newAchievements : undefined
     }), {
       status: 200,
@@ -151,7 +146,7 @@ export async function POST(req: NextRequest) {
     });
     
   } catch (error) {
-    console.error('Error in study time POST:', error);
+    console.error('Error in study-time POST:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

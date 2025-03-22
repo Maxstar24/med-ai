@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeFirebaseAdmin, verifyFirebaseToken } from '@/lib/firebase-admin';
+import { connectToDatabase } from '@/lib/db';
+import User from '@/models/User';
 
 // POST /api/users/profile/activity
 export async function POST(req: NextRequest) {
@@ -47,29 +47,22 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Get user document from Firestore
-    const db = getFirestore();
-    const userRef = db.collection('users').doc(uid);
-    const userDoc = await userRef.get();
+    // Connect to MongoDB
+    await connectToDatabase();
     
-    if (!userDoc.exists) {
+    // Find user by Firebase UID
+    const user = await User.findOne({ firebaseUid: uid });
+    
+    if (!user) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    const userData = userDoc.data();
-    if (!userData) {
-      return new Response(JSON.stringify({ error: 'User data not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
     // Initialize gamification data if not exists
-    if (!userData.gamification) {
-      userData.gamification = {
+    if (!user.gamification) {
+      user.gamification = {
         xp: 0,
         level: 1,
         achievements: [],
@@ -88,247 +81,178 @@ export async function POST(req: NextRequest) {
       };
     }
     
-    // Track activity based on type
-    let updateData: Record<string, any> = {};
-    let gainedXP = 0;
-    let newAchievements: any[] = [];
+    // Update activity based on type
+    let xpEarned = 0;
     
     if (activityType === 'flashcard') {
-      // Validate parameters
-      if (typeof isCorrect !== 'boolean') {
-        return new Response(JSON.stringify({ error: 'isCorrect parameter is required for flashcard activity' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-      
-      // Update card counts
-      const totalCardsStudied = (userData.gamification.totalCardsStudied || 0) + 1;
-      const totalCorrectAnswers = (userData.gamification.totalCorrectAnswers || 0) + (isCorrect ? 1 : 0);
-      const totalIncorrectAnswers = (userData.gamification.totalIncorrectAnswers || 0) + (isCorrect ? 0 : 1);
-      
-      // Calculate accuracy
-      const accuracyDenominator = totalCorrectAnswers + totalIncorrectAnswers;
-      const averageAccuracy = accuracyDenominator > 0 
-        ? Math.round((totalCorrectAnswers / accuracyDenominator) * 100) 
-        : 0;
+      // Increment total cards studied
+      user.gamification.totalCardsStudied = (user.gamification.totalCardsStudied || 0) + 1;
       
       // Update daily progress
-      const dailyProgress = (userData.gamification.dailyProgress || 0) + 1;
-      const dailyGoal = userData.gamification.dailyGoal || 10;
-      const dailyGoalMet = dailyProgress >= dailyGoal;
+      user.gamification.dailyProgress = (user.gamification.dailyProgress || 0) + 1;
       
-      // Award XP: 5 for correct, 1 for incorrect
-      gainedXP = isCorrect ? 5 : 1;
-      
-      // Prepare update data
-      updateData = {
-        'gamification.totalCardsStudied': totalCardsStudied,
-        'gamification.totalCorrectAnswers': totalCorrectAnswers,
-        'gamification.totalIncorrectAnswers': totalIncorrectAnswers,
-        'gamification.averageAccuracy': averageAccuracy,
-        'gamification.dailyProgress': dailyProgress
-      };
-      
-      // Check for card count achievements
-      const cardMilestones = [
-        { id: 'cards-10', name: 'Getting Started', description: 'Study 10 flashcards', count: 10, icon: '🔄' },
-        { id: 'cards-100', name: 'Learning Basics', description: 'Study 100 flashcards', count: 100, icon: '📝' },
-        { id: 'cards-500', name: 'Memory Master', description: 'Study 500 flashcards', count: 500, icon: '🧠' },
-        { id: 'cards-1000', name: 'Study Champion', description: 'Study 1,000 flashcards', count: 1000, icon: '🏅' },
-        { id: 'cards-5000', name: 'Flashcard Legend', description: 'Study 5,000 flashcards', count: 5000, icon: '👑' }
-      ];
-      
-      // Check if user unlocked any card milestones
-      for (const milestone of cardMilestones) {
-        if (totalCardsStudied >= milestone.count && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
-          newAchievements.push({
-            ...milestone,
-            category: 'cards',
-            unlockedAt: new Date()
-          });
-        }
-      }
-      
-      // Check for accuracy achievements
-      if (totalCardsStudied >= 100) {
-        const accuracyAchievements = [
-          { id: 'accuracy-70', name: 'Above Average', description: 'Maintain 70% accuracy after 100+ cards', threshold: 70, icon: '📈' },
-          { id: 'accuracy-80', name: 'High Performer', description: 'Maintain 80% accuracy after 100+ cards', threshold: 80, icon: '📊' },
-          { id: 'accuracy-90', name: 'Excellence', description: 'Maintain 90% accuracy after 100+ cards', threshold: 90, icon: '🎯' },
-          { id: 'accuracy-95', name: 'Near Perfect', description: 'Maintain 95% accuracy after 100+ cards', threshold: 95, icon: '⭐' },
-          { id: 'accuracy-100', name: 'Perfect Recall', description: 'Maintain 100% accuracy after 100+ cards', threshold: 100, icon: '🌟' }
-        ];
-        
-        // Check if user unlocked any accuracy achievements
-        for (const achievement of accuracyAchievements) {
-          if (averageAccuracy >= achievement.threshold && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === achievement.id))) {
-            newAchievements.push({
-              ...achievement,
-              category: 'accuracy',
-              unlockedAt: new Date()
-            });
-          }
-        }
-      }
-      
-      // Check for daily goal achievements
-      if (dailyGoalMet && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === 'daily-goal'))) {
-        newAchievements.push({
-          id: 'daily-goal',
-          name: 'Goal Crusher',
-          description: 'Complete your daily study goal',
-          category: 'daily',
-          icon: '🎯',
-          unlockedAt: new Date()
-        });
-        // Bonus XP for meeting daily goal
-        gainedXP += 20;
-      }
-      
-      // Return data to include in response
-      const returnData = {
-        totalCardsStudied,
-        totalCorrectAnswers,
-        totalIncorrectAnswers,
-        averageAccuracy,
-        dailyProgress,
-        dailyGoalMet
-      };
-      
-      // Add XP
-      const currentXP = userData.gamification.xp || 0;
-      const newXP = currentXP + gainedXP;
-      const currentLevel = userData.gamification.level || 1;
-      const newLevel = 1 + Math.floor(newXP / 100);
-      
-      updateData['gamification.xp'] = newXP;
-      updateData['gamification.level'] = newLevel;
-      
-      // Apply updates
-      if (newAchievements.length > 0) {
-        await userRef.update({
-          ...updateData,
-          'gamification.achievements': FieldValue.arrayUnion(...newAchievements)
-        });
+      // Award XP based on rating
+      if (isCorrect) {
+        user.gamification.totalCorrectAnswers = (user.gamification.totalCorrectAnswers || 0) + 1;
+        xpEarned = 10; // 10 XP for correct flashcard
       } else {
-        await userRef.update(updateData);
+        user.gamification.totalIncorrectAnswers = (user.gamification.totalIncorrectAnswers || 0) + 1;
+        xpEarned = 2; // 2 XP for reviewing a flashcard even if incorrect
       }
-      
-      // Return updated values
-      return new Response(JSON.stringify({
-        ...returnData,
-        xp: newXP,
-        level: newLevel,
-        newAchievements: newAchievements.length > 0 ? newAchievements : undefined
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
     } else if (activityType === 'quiz') {
-      // Validate parameters
-      if (typeof correctAnswers !== 'number' || typeof totalQuestions !== 'number') {
-        return new Response(JSON.stringify({ error: 'correctAnswers and totalQuestions parameters are required for quiz activity' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+      // Increment total quizzes taken
+      user.gamification.totalQuizzesTaken = (user.gamification.totalQuizzesTaken || 0) + 1;
       
-      // Update quiz counts
-      const totalQuizzesTaken = (userData.gamification.totalQuizzesTaken || 0) + 1;
-      const newTotalCorrectAnswers = (userData.gamification.totalCorrectAnswers || 0) + correctAnswers;
-      const newTotalIncorrectAnswers = (userData.gamification.totalIncorrectAnswers || 0) + (totalQuestions - correctAnswers);
+      // Update daily progress (count quiz as 5 cards)
+      user.gamification.dailyProgress = (user.gamification.dailyProgress || 0) + 5;
       
-      // Calculate accuracy
-      const accuracyDenominator = newTotalCorrectAnswers + newTotalIncorrectAnswers;
-      const averageAccuracy = accuracyDenominator > 0 
-        ? Math.round((newTotalCorrectAnswers / accuracyDenominator) * 100) 
-        : 0;
-      
-      // Award XP: 10 base + 5 per correct answer
-      gainedXP = 10 + (correctAnswers * 5);
-      
-      // Prepare update data
-      updateData = {
-        'gamification.totalQuizzesTaken': totalQuizzesTaken,
-        'gamification.totalCorrectAnswers': newTotalCorrectAnswers,
-        'gamification.totalIncorrectAnswers': newTotalIncorrectAnswers,
-        'gamification.averageAccuracy': averageAccuracy
-      };
-      
-      // Check for quiz count achievements
-      const quizMilestones = [
-        { id: 'quiz-1', name: 'Quiz Taker', description: 'Complete your first quiz', count: 1, icon: '📝' },
-        { id: 'quiz-10', name: 'Quiz Regular', description: 'Complete 10 quizzes', count: 10, icon: '📊' },
-        { id: 'quiz-50', name: 'Quiz Expert', description: 'Complete 50 quizzes', count: 50, icon: '🧩' },
-        { id: 'quiz-100', name: 'Quiz Master', description: 'Complete 100 quizzes', count: 100, icon: '🏆' }
-      ];
-      
-      // Check if user unlocked any quiz milestones
-      for (const milestone of quizMilestones) {
-        if (totalQuizzesTaken >= milestone.count && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
-          newAchievements.push({
-            ...milestone,
-            category: 'quiz',
-            unlockedAt: new Date()
-          });
-        }
-      }
-      
-      // Check for perfect score achievements
-      if (correctAnswers === totalQuestions && totalQuestions >= 5) {
-        const perfectScoreId = 'quiz-perfect';
-        if (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === perfectScoreId)) {
-          newAchievements.push({
-            id: perfectScoreId,
-            name: 'Perfect Score',
-            description: 'Get all questions correct in a quiz',
-            category: 'quiz',
-            icon: '🎯',
-            unlockedAt: new Date()
-          });
-          // Bonus XP for perfect score
-          gainedXP += 25;
-        }
-      }
-      
-      // Add XP
-      const currentXP = userData.gamification.xp || 0;
-      const newXP = currentXP + gainedXP;
-      const currentLevel = userData.gamification.level || 1;
-      const newLevel = 1 + Math.floor(newXP / 100);
-      
-      updateData['gamification.xp'] = newXP;
-      updateData['gamification.level'] = newLevel;
-      
-      // Apply updates
-      if (newAchievements.length > 0) {
-        await userRef.update({
-          ...updateData,
-          'gamification.achievements': FieldValue.arrayUnion(...newAchievements)
-        });
+      // Calculate score and XP
+      if (correctAnswers !== undefined && totalQuestions !== undefined) {
+        const scorePercentage = Math.round((correctAnswers / totalQuestions) * 100);
+        
+        // Award XP based on score
+        xpEarned = Math.round(scorePercentage / 10) * 5; // 0-50 XP based on score
+        
+        // Update correct/incorrect answers
+        user.gamification.totalCorrectAnswers = (user.gamification.totalCorrectAnswers || 0) + correctAnswers;
+        user.gamification.totalIncorrectAnswers = (user.gamification.totalIncorrectAnswers || 0) + (totalQuestions - correctAnswers);
       } else {
-        await userRef.update(updateData);
+        // If no score details, award base XP
+        xpEarned = 15; // Base XP for quiz completion
       }
-      
-      // Return updated values
-      return new Response(JSON.stringify({
-        totalQuizzesTaken,
-        totalCorrectAnswers: newTotalCorrectAnswers,
-        totalIncorrectAnswers: newTotalIncorrectAnswers,
-        averageAccuracy,
-        xp: newXP,
-        level: newLevel,
-        newAchievements: newAchievements.length > 0 ? newAchievements : undefined
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
     }
     
-    // This shouldn't be reached due to validation at the beginning
-    return new Response(JSON.stringify({ error: 'Invalid activity type' }), {
-      status: 400,
+    // Update XP
+    user.gamification.xp = (user.gamification.xp || 0) + xpEarned;
+    
+    // Calculate level
+    user.gamification.level = 1 + Math.floor(user.gamification.xp / 100);
+    
+    // Calculate accuracy
+    const totalAnswers = (user.gamification.totalCorrectAnswers || 0) + (user.gamification.totalIncorrectAnswers || 0);
+    if (totalAnswers > 0) {
+      user.gamification.averageAccuracy = Math.round((user.gamification.totalCorrectAnswers || 0) * 100 / totalAnswers);
+    }
+    
+    // Check if daily goal is met
+    const dailyGoalMet = (user.gamification.dailyProgress || 0) >= (user.gamification.dailyGoal || 10);
+    
+    // Update streak if needed
+    // If this is first activity of the day
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let lastActive = user.gamification.lastActive ? new Date(user.gamification.lastActive) : null;
+    if (lastActive) {
+      lastActive.setHours(0, 0, 0, 0);
+    }
+    
+    let streakUpdated = false;
+    let currentStreak = user.gamification.currentStreak || 0;
+    let longestStreak = user.gamification.longestStreak || 0;
+    
+    // If first time or not active yesterday, reset streak
+    if (!lastActive || (today.getTime() - lastActive.getTime() > 24 * 60 * 60 * 1000)) {
+      // More than a day gap, reset streak to 1 (today)
+      currentStreak = 1;
+      streakUpdated = true;
+    } else if (today.getTime() > lastActive.getTime()) {
+      // Active yesterday, increment streak
+      currentStreak += 1;
+      streakUpdated = true;
+      
+      // Check if we've hit a new streak record
+      if (currentStreak > longestStreak) {
+        longestStreak = currentStreak;
+      }
+    }
+    
+    if (streakUpdated) {
+      user.gamification.currentStreak = currentStreak;
+      user.gamification.longestStreak = longestStreak;
+    }
+    
+    // Always update last active time
+    user.gamification.lastActive = new Date();
+    
+    // Check for unlockable achievements
+    const newAchievements = [];
+    
+    // Activity achievements
+    if (activityType === 'flashcard') {
+      const flashcardMilestones = [
+        { id: 'cards-10', name: 'Flashcard Novice', description: 'Study 10 flashcards', count: 10, icon: '🃏' },
+        { id: 'cards-50', name: 'Flashcard Enthusiast', description: 'Study 50 flashcards', count: 50, icon: '🎴' },
+        { id: 'cards-100', name: 'Flashcard Expert', description: 'Study 100 flashcards', count: 100, icon: '📇' },
+        { id: 'cards-500', name: 'Flashcard Master', description: 'Study 500 flashcards', count: 500, icon: '🏅' },
+        { id: 'cards-1000', name: 'Flashcard Guru', description: 'Study 1,000 flashcards', count: 1000, icon: '🏆' }
+      ];
+      
+      // Check card milestones
+      for (const milestone of flashcardMilestones) {
+        if (user.gamification.totalCardsStudied >= milestone.count && 
+            (!user.gamification.achievements || 
+             !user.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
+          newAchievements.push({
+            id: milestone.id,
+            name: milestone.name,
+            description: milestone.description,
+            category: 'flashcards',
+            icon: milestone.icon,
+            unlockedAt: new Date()
+          });
+        }
+      }
+    } else if (activityType === 'quiz') {
+      const quizMilestones = [
+        { id: 'quiz-5', name: 'Quiz Taker', description: 'Complete 5 quizzes', count: 5, icon: '📝' },
+        { id: 'quiz-10', name: 'Quiz Enthusiast', description: 'Complete 10 quizzes', count: 10, icon: '📋' },
+        { id: 'quiz-25', name: 'Quiz Expert', description: 'Complete 25 quizzes', count: 25, icon: '📊' },
+        { id: 'quiz-50', name: 'Quiz Master', description: 'Complete 50 quizzes', count: 50, icon: '🎓' },
+        { id: 'quiz-100', name: 'Quiz Champion', description: 'Complete 100 quizzes', count: 100, icon: '🏆' }
+      ];
+      
+      // Check quiz milestones
+      for (const milestone of quizMilestones) {
+        if (user.gamification.totalQuizzesTaken >= milestone.count && 
+            (!user.gamification.achievements || 
+             !user.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
+          newAchievements.push({
+            id: milestone.id,
+            name: milestone.name,
+            description: milestone.description,
+            category: 'quizzes',
+            icon: milestone.icon,
+            unlockedAt: new Date()
+          });
+        }
+      }
+    }
+    
+    // Add achievements if any
+    if (newAchievements.length > 0) {
+      if (!user.gamification.achievements) {
+        user.gamification.achievements = [];
+      }
+      user.gamification.achievements.push(...newAchievements);
+    }
+    
+    // Save updated user
+    await user.save();
+    
+    // Return updated values
+    return new Response(JSON.stringify({
+      updated: true,
+      xpEarned,
+      newLevel: user.gamification.level,
+      dailyGoalMet,
+      streakUpdated: streakUpdated ? {
+        currentStreak,
+        longestStreak
+      } : undefined,
+      newAchievements: newAchievements.length > 0 ? newAchievements : undefined
+    }), {
+      status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
     

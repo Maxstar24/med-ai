@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeFirebaseAdmin, verifyFirebaseToken } from '@/lib/firebase-admin';
+import { connectToDatabase } from '@/lib/db';
+import User from '@/models/User';
 
 interface RouteContext {
   params: {
@@ -53,29 +53,22 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Get user document from Firestore
-    const db = getFirestore();
-    const userRef = db.collection('users').doc(uid);
-    const userDoc = await userRef.get();
+    // Connect to MongoDB
+    await connectToDatabase();
     
-    if (!userDoc.exists) {
+    // Find user by Firebase UID
+    const user = await User.findOne({ firebaseUid: uid });
+    
+    if (!user) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    const userData = userDoc.data();
-    if (!userData) {
-      return new Response(JSON.stringify({ error: 'User data not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
     // Initialize gamification data if not exists
-    if (!userData.gamification) {
-      userData.gamification = {
+    if (!user.gamification) {
+      user.gamification = {
         xp: 0,
         level: 1,
         achievements: [],
@@ -95,12 +88,12 @@ export async function POST(req: NextRequest) {
     }
     
     // Add XP to user
-    const currentXP = userData.gamification.xp || 0;
+    const currentXP = user.gamification.xp || 0;
     const newXP = currentXP + amount;
     
     // Calculate level based on XP (adjust formula as needed)
     // Simple formula: level = 1 + floor(xp / 100)
-    const currentLevel = userData.gamification.level || 1;
+    const currentLevel = user.gamification.level || 1;
     const newLevel = 1 + Math.floor(newXP / 100);
     const leveledUp = newLevel > currentLevel;
     
@@ -118,7 +111,9 @@ export async function POST(req: NextRequest) {
     
     // Check if user unlocked any XP milestones
     for (const milestone of xpMilestones) {
-      if (newXP >= milestone.xp && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
+      if (newXP >= milestone.xp && 
+          (!user.gamification.achievements || 
+           !user.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
         newAchievements.push({
           ...milestone,
           category: 'xp',
@@ -138,7 +133,9 @@ export async function POST(req: NextRequest) {
     
     // Check if user unlocked any level milestones
     for (const milestone of levelMilestones) {
-      if (newLevel >= milestone.level && (!userData.gamification.achievements || !userData.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
+      if (newLevel >= milestone.level && 
+          (!user.gamification.achievements || 
+           !user.gamification.achievements.some((a: { id: string }) => a.id === milestone.id))) {
         newAchievements.push({
           ...milestone,
           category: 'level',
@@ -147,22 +144,20 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // Prepare update object
-    const updateData: Record<string, any> = {
-      'gamification.xp': newXP,
-      'gamification.level': newLevel
-    };
+    // Update user data
+    user.gamification.xp = newXP;
+    user.gamification.level = newLevel;
     
     // Add achievements if any
     if (newAchievements.length > 0) {
-      // For firebase-admin, we need to use FieldValue.arrayUnion
-      await userRef.update({
-        ...updateData,
-        'gamification.achievements': FieldValue.arrayUnion(...newAchievements)
-      });
-    } else {
-      await userRef.update(updateData);
+      if (!user.gamification.achievements) {
+        user.gamification.achievements = [];
+      }
+      user.gamification.achievements.push(...newAchievements);
     }
+    
+    // Save updated user
+    await user.save();
     
     // Return updated values
     return new Response(JSON.stringify({
