@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 
 interface Achievement {
@@ -88,103 +88,28 @@ export const useGamification = () => {
   return context;
 };
 
+// Create stub functions that do nothing
+const noopAsync = async () => {};
+const noop = () => {};
+
 export function GamificationProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading, refreshToken } = useAuth();
-  const [gamification, setGamification] = useState<GamificationState>(defaultGamificationState);
-  const [loadingGamification, setLoadingGamification] = useState(true);
-  const [recentAchievements, setRecentAchievements] = useState<Achievement[]>([]);
+  // Use static default state without any API calls
+  const [gamification] = useState<GamificationState>(defaultGamificationState);
+  const [loadingGamification] = useState(false);
+  const [recentAchievements] = useState<Achievement[]>([]);
 
-  // Fetch user's gamification data
-  const refreshGamificationData = async () => {
-    if (!user) {
-      setLoadingGamification(false);
-      return;
-    }
-
-    try {
-      setLoadingGamification(true);
-      const token = await refreshToken();
-      
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      const response = await fetch('/api/users/profile/gamification', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch gamification data');
-      }
-
-      const data = await response.json();
-      setGamification(data.gamification);
-    } catch (error) {
-      console.error('Error fetching gamification data:', error);
-    } finally {
-      setLoadingGamification(false);
-    }
-  };
-
-  // Add XP and potentially level up
-  const addXP = async (amount: number, reason?: string) => {
-    if (!user) return;
-    // Implementation would go here
-  };
-
-  // Update user streak
-  const updateStreak = async () => {
-    if (!user) return;
-    // Implementation would go here
-  };
-
-  // Track flashcard study activity
-  const trackCardStudied = async (isCorrect: boolean) => {
-    if (!user) return;
-    // Implementation would go here
-  };
-
-  // Track quiz completion
-  const trackQuizCompleted = async (correctAnswers: number, totalQuestions: number) => {
-    if (!user) return;
-    // Implementation would go here
-  };
-
-  // Track study time
-  const trackStudyTime = async (minutes: number) => {
-    if (!user || minutes <= 0) return;
-    // Implementation would go here
-  };
-
-  // Clear recent achievements
-  const clearRecentAchievements = () => {
-    setRecentAchievements([]);
-  };
-
-  // Load gamification data on auth state change
-  useEffect(() => {
-    if (!authLoading && user) {
-      refreshGamificationData();
-    } else if (!authLoading && !user) {
-      setGamification(defaultGamificationState);
-      setLoadingGamification(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, authLoading]); // Deliberately omitting refreshGamificationData to prevent infinite API calls
-
+  // Provide stub implementations that don't make API calls
   const value = {
     gamification,
     loadingGamification,
-    addXP,
-    updateStreak,
-    trackCardStudied,
-    trackQuizCompleted,
-    trackStudyTime,
-    refreshGamificationData,
+    addXP: noopAsync,
+    updateStreak: noopAsync,
+    trackCardStudied: noopAsync,
+    trackQuizCompleted: noopAsync,
+    trackStudyTime: noopAsync,
+    refreshGamificationData: noopAsync,
     recentAchievements,
-    clearRecentAchievements
+    clearRecentAchievements: noop
   };
 
   return (
