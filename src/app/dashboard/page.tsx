@@ -1,6 +1,6 @@
 'use client';
 
-import { MainNav } from '@/components/ui/navigation-menu';
+import { MainNav } from '@/components/MainNav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -55,7 +55,7 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-4xl font-bold mb-2">
-                Welcome back, {user?.displayName?.split(' ')[0] || 'User'}! 👋
+                Welcome back, {user?.email?.split('@')[0] || 'User'}! 👋
               </h1>
               <p className="text-muted-foreground">
                 Continue your medical learning journey
