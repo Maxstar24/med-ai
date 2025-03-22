@@ -173,7 +173,7 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       setGamification(defaultGamificationState);
       setLoadingGamification(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, refreshGamificationData]);
 
   const value = {
     gamification,

@@ -8,21 +8,18 @@ import { cn } from '@/lib/utils';
 import { 
   Home, 
   BookOpen, 
-  Brain, 
-  LogIn, 
-  UserPlus,
+  Brain,
   Layers,
   FlaskConical,
   BookMarked
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { UserProfile } from './UserProfile';
 import Image from 'next/image';
-import { ThemeToggle } from './ThemeToggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function MainNav() {
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const [isClient, setIsClient] = useState(false);
   
   // Use useEffect to ensure we're rendering on the client side
