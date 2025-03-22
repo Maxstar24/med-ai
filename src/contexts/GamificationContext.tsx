@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { useToast } from '@/components/ui/use-toast';
 
 interface Achievement {
   id: string;
@@ -91,7 +90,6 @@ export const useGamification = () => {
 
 export function GamificationProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading, refreshToken } = useAuth();
-  const { toast } = useToast();
   const [gamification, setGamification] = useState<GamificationState>(defaultGamificationState);
   const [loadingGamification, setLoadingGamification] = useState(true);
   const [recentAchievements, setRecentAchievements] = useState<Achievement[]>([]);
@@ -173,7 +171,8 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       setGamification(defaultGamificationState);
       setLoadingGamification(false);
     }
-  }, [user, authLoading, refreshGamificationData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading]); // Deliberately omitting refreshGamificationData to prevent infinite API calls
 
   const value = {
     gamification,
