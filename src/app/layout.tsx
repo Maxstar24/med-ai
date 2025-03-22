@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { GamificationProvider } from "@/contexts/GamificationContext";
+// import { GamificationProvider } from "@/contexts/GamificationContext";
 import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -28,10 +28,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <GamificationProvider>
+            {/* <GamificationProvider> */}
               {children}
               <Toaster />
-            </GamificationProvider>
+            {/* </GamificationProvider> */}
           </AuthProvider>
         </ThemeProvider>
       </body>

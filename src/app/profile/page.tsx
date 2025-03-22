@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useGamification } from '@/contexts/GamificationContext';
+// import { useGamification } from '@/contexts/GamificationContext';
 import { MainNav } from '@/components/MainNav';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +20,7 @@ import { Award, Trophy, Calendar, Clock, Brain, Book, ChevronRight, Upload, Edit
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
-  const { gamification, loadingGamification, refreshGamificationData } = useGamification();
+  // const { gamification, loadingGamification, refreshGamificationData } = useGamification();
   const router = useRouter();
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -29,6 +29,39 @@ export default function ProfilePage() {
     experience: '',
     bio: ''
   });
+
+  // Mock gamification data for now
+  const gamification = {
+    xp: 250,
+    level: 2,
+    currentStreak: 5,
+    longestStreak: 10,
+    totalCardsStudied: 120,
+    totalQuizzesTaken: 15,
+    totalCorrectAnswers: 95,
+    totalIncorrectAnswers: 25,
+    averageAccuracy: 85,
+    studyTime: 180,
+    achievements: [{
+      id: '1',
+      name: 'First Steps',
+      description: 'Completed your first study session',
+      icon: '🚀',
+      unlockedAt: new Date(),
+      category: 'general'
+    }],
+    badges: [{
+      id: '1',
+      name: 'Beginner',
+      description: 'Started your learning journey',
+      icon: '🥉',
+      tier: 'bronze'
+    }],
+    specialtyProgress: [],
+    dailyGoal: 10,
+    dailyProgress: 5
+  };
+  const loadingGamification = false;
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -121,7 +154,7 @@ export default function ProfilePage() {
             <TabsTrigger value="stats">Stats & Progress</TabsTrigger>
             <TabsTrigger value="edit">Edit Profile</TabsTrigger>
           </TabsList>
-          
+
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -439,7 +472,7 @@ export default function ProfilePage() {
               </Card>
             </div>
           </TabsContent>
-          
+
           {/* Edit Profile Tab */}
           <TabsContent value="edit" className="space-y-6">
             <Card id="edit">
@@ -496,7 +529,7 @@ export default function ProfilePage() {
                         />
                       </div>
                       
-                      <div className="space-y-2">
+              <div className="space-y-2">
                         <Label htmlFor="experience">Experience Level</Label>
                         <Input 
                           id="experience" 
@@ -506,8 +539,8 @@ export default function ProfilePage() {
                           placeholder="e.g. Medical Student, Resident, 5+ years" 
                         />
                       </div>
-                    </div>
-                  </div>
+              </div>
+            </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="bio">Bio</Label>
