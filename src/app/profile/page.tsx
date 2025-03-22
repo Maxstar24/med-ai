@@ -1,433 +1,241 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from '@/components/ui/use-toast';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription,
-} from '@/components/ui/form';
+import { useGamification } from '@/contexts/GamificationContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { redirect } from 'next/navigation';
-
-const profileSchema = z.object({
-  name: z.string()
-    .min(2, 'Name must be at least 2 characters')
-    .max(50, 'Name must be less than 50 characters')
-    .regex(/^[a-zA-Z\s]*$/, 'Name can only contain letters and spaces'),
-  email: z.string()
-    .email('Invalid email address')
-    .toLowerCase(),
-  specialization: z.string()
-    .min(2, 'Specialization must be at least 2 characters')
-    .max(100, 'Specialization must be less than 100 characters')
-    .optional(),
-  yearOfStudy: z.string()
-    .regex(/^[1-7]$/, 'Year of study must be between 1 and 7')
-    .optional(),
-  institution: z.string()
-    .min(2, 'Institution must be at least 2 characters')
-    .max(100, 'Institution must be less than 100 characters')
-    .optional(),
-  bio: z.string()
-    .max(500, 'Bio must be less than 500 characters')
-    .optional(),
-});
-
-const preferencesSchema = z.object({
-  studyReminders: z.boolean().default(true),
-  emailNotifications: z.boolean().default(true),
-  darkMode: z.boolean().default(true),
-  language: z.string().default('en'),
-});
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
-type PreferencesFormValues = z.infer<typeof preferencesSchema>;
-
-const defaultProfileValues = {
-  name: '',
-  email: '',
-  specialization: '',
-  yearOfStudy: '',
-  institution: '',
-  bio: '',
-};
-
-const defaultPreferencesValues = {
-  studyReminders: true,
-  emailNotifications: true,
-  darkMode: true,
-  language: 'en',
-};
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
+import { CalendarDays, Award, Clock, BookOpen, GraduationCap, BrainCircuit } from 'lucide-react';
 
 export default function ProfilePage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { gamification, loadingGamification, refreshGamificationData } = useGamification();
   const router = useRouter();
-
-  if (loading) {
-    return <LoadingUI />;
-  }
-
-  if (!user) {
-    redirect('/login');
-  }
-
-  return (
-    <div className="min-h-screen">
-      <Suspense fallback={<LoadingUI />}>
-        <ProfileContent />
-      </Suspense>
-    </div>
-  );
-}
-
-function LoadingUI() {
-  return (
-    <div className="container mx-auto py-10 flex items-center justify-center min-h-screen">
-      <div className="text-center space-y-4">
-        <div className="animate-spin text-4xl">⏳</div>
-        <p className="text-muted-foreground">Loading your profile...</p>
-      </div>
-    </div>
-  );
-}
-
-function ProfileContent() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState({
-    profile: false,
-    preferences: false,
-    initial: true,
-  });
-
-  const profileForm = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: defaultProfileValues,
-  });
-
-  const preferencesForm = useForm<PreferencesFormValues>({
-    resolver: zodResolver(preferencesSchema),
-    defaultValues: defaultPreferencesValues,
-  });
 
   useEffect(() => {
-    if (!user) return;
+    if (!authLoading && !user) {
+      router.push('/login');
+    } else if (user) {
+      refreshGamificationData();
+    }
+  }, [user, authLoading, router, refreshGamificationData]);
 
-    async function loadData() {
-      try {
-        const [profileRes, prefsRes] = await Promise.all([
-          fetch('/api/user/profile', { credentials: 'include' }),
-          fetch('/api/user/preferences', { credentials: 'include' }),
-        ]);
+  // Helper to format study time (from minutes to hours and minutes)
+  const formatStudyTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours === 0) return `${mins} minutes`;
+    if (mins === 0) return `${hours} hours`;
+    return `${hours} hours, ${mins} minutes`;
+  };
 
-        if (!profileRes.ok) throw new Error('Failed to load profile');
-        if (!prefsRes.ok) throw new Error('Failed to load preferences');
+  // Helper to calculate progress to next level
+  const calculateLevelProgress = () => {
+    if (!gamification) return 0;
+    const currentXP = gamification.xp;
+    const currentLevel = gamification.level;
+    const xpForCurrentLevel = (currentLevel - 1) * 100;
+    const xpForNextLevel = currentLevel * 100;
+    const xpInCurrentLevel = currentXP - xpForCurrentLevel;
+    const xpNeededForNextLevel = xpForNextLevel - xpForCurrentLevel;
+    return Math.round((xpInCurrentLevel / xpNeededForNextLevel) * 100);
+  };
 
-        const [profileData, prefsData] = await Promise.all([
-          profileRes.json(),
-          prefsRes.json(),
-        ]);
-
-        profileForm.reset(profileData);
-        preferencesForm.reset(prefsData);
-      } catch (error) {
-        console.error('Error loading data:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Error loading data',
-          description: 'Failed to load your profile data. Please refresh the page.',
-        });
-      } finally {
-        setIsLoading(prev => ({ ...prev, initial: false }));
-      }
+  // Group achievements by category for display
+  const getAchievementsByCategory = () => {
+    if (!gamification || !gamification.achievements || gamification.achievements.length === 0) {
+      return {};
     }
 
-    loadData();
-  }, [user]);
+    const categories: Record<string, Array<any>> = {};
+    gamification.achievements.forEach(achievement => {
+      if (!categories[achievement.category]) {
+        categories[achievement.category] = [];
+      }
+      categories[achievement.category].push(achievement);
+    });
 
-  if (loading || isLoading.initial) {
-    return <LoadingUI />;
+    return categories;
+  };
+
+  const achievementCategories = getAchievementsByCategory();
+
+  // Loading skeleton
+  if (authLoading || loadingGamification) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-48" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Skeleton className="h-32 rounded-lg" />
+            <Skeleton className="h-32 rounded-lg" />
+            <Skeleton className="h-32 rounded-lg" />
+          </div>
+          <Skeleton className="h-64 rounded-lg" />
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
-    return null;
-  }
-
-  async function onProfileSubmit(values: ProfileFormValues) {
-    try {
-      setIsLoading(prev => ({ ...prev, profile: true }));
-      
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update profile');
-      }
-
-      const data = await response.json();
-      
-      toast({
-        title: 'Profile updated',
-        description: 'Your profile has been updated successfully',
-        variant: 'default',
-      });
-
-      router.refresh();
-    } catch (error) {
-      console.error('Profile update error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error updating profile',
-        description: error instanceof Error 
-          ? error.message 
-          : 'An unexpected error occurred. Please try again later.',
-      });
-    } finally {
-      setIsLoading(prev => ({ ...prev, profile: false }));
-    }
-  }
-
-  async function onPreferencesSubmit(values: PreferencesFormValues) {
-    try {
-      setIsLoading(prev => ({ ...prev, preferences: true }));
-      
-      const response = await fetch('/api/user/preferences', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update preferences');
-      }
-
-      const data = await response.json();
-      
-      toast({
-        title: 'Preferences updated',
-        description: 'Your preferences have been updated successfully',
-        variant: 'default',
-      });
-
-      router.refresh();
-    } catch (error) {
-      console.error('Preferences update error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error updating preferences',
-        description: error instanceof Error 
-          ? error.message 
-          : 'An unexpected error occurred. Please try again later.',
-      });
-    } finally {
-      setIsLoading(prev => ({ ...prev, preferences: false }));
-    }
+    return null; // Redirect handled by useEffect
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex flex-col space-y-8">
-        <div className="flex items-center space-x-4">
-          <Avatar className="h-20 w-20">
-            <AvatarImage src="/placeholder-avatar.jpg" alt="Profile picture" />
-            <AvatarFallback>MD</AvatarFallback>
-          </Avatar>
-          <div>
-            <h1 className="text-2xl font-bold">Profile Settings</h1>
-            <p className="text-muted-foreground">
-              Manage your account settings and preferences
-            </p>
-          </div>
-        </div>
-
-        <Tabs defaultValue="profile" className="w-full">
-          <TabsList>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="preferences">Preferences</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="profile" className="space-y-6">
-            <Form {...profileForm}>
-              <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
-                <FormField
-                  control={profileForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={profileForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={profileForm.control}
-                  name="specialization"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Specialization</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Your medical specialization or area of focus
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={profileForm.control}
-                  name="yearOfStudy"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Year of Study</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={profileForm.control}
-                  name="institution"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Institution</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={isLoading.profile}>
-                  {isLoading.profile ? (
-                    <>
-                      <span className="mr-2">Saving...</span>
-                      <span className="animate-spin">⏳</span>
-                    </>
-                  ) : (
-                    'Save changes'
-                  )}
-                </Button>
-              </form>
-            </Form>
-          </TabsContent>
-
-          <TabsContent value="preferences" className="space-y-6">
-            <Form {...preferencesForm}>
-              <form onSubmit={preferencesForm.handleSubmit(onPreferencesSubmit)} className="space-y-4">
-                <FormField
-                  control={preferencesForm.control}
-                  name="studyReminders"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Enable study reminders</FormLabel>
-                        <FormDescription>
-                          Receive notifications for your study schedule and goals
-                        </FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={preferencesForm.control}
-                  name="emailNotifications"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Receive email notifications</FormLabel>
-                        <FormDescription>
-                          Get email updates about your learning progress and achievements
-                        </FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={isLoading.preferences}>
-                  {isLoading.preferences ? (
-                    <>
-                      <span className="mr-2">Saving...</span>
-                      <span className="animate-spin">⏳</span>
-                    </>
-                  ) : (
-                    'Save preferences'
-                  )}
-                </Button>
-              </form>
-            </Form>
-          </TabsContent>
-
-          <TabsContent value="security" className="space-y-6">
-            <div className="space-y-4">
-              <h2 className="text-lg font-medium">Security Settings</h2>
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/reset-password/request')}
-                >
-                  Change Password
-                </Button>
-                <p className="text-sm text-muted-foreground">
-                  Update your password to keep your account secure
-                </p>
+    <div className="container mx-auto py-8 px-4 space-y-6">
+      <h1 className="text-3xl font-bold">User Profile</h1>
+      
+      {/* User info and level */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>User Info</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p><strong>Email:</strong> {user.email}</p>
+              <p><strong>ID:</strong> {user.uid.slice(0, 8)}...</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Level {gamification.level}</CardTitle>
+            <CardDescription>{gamification.xp} XP total</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Progress value={calculateLevelProgress()} className="h-2" />
+              <p className="text-sm text-muted-foreground">
+                {100 - calculateLevelProgress()} XP to Level {gamification.level + 1}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Streak</CardTitle>
+            <CardDescription>Your learning consistency</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-orange-500" />
+                <p><strong>Current Streak:</strong> {gamification.currentStreak} days</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-yellow-500" />
+                <p><strong>Longest Streak:</strong> {gamification.longestStreak} days</p>
               </div>
             </div>
-          </TabsContent>
-        </Tabs>
+          </CardContent>
+        </Card>
       </div>
+      
+      {/* Stats and achievements tabs */}
+      <Tabs defaultValue="stats" className="w-full">
+        <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+          <TabsTrigger value="stats">Statistics</TabsTrigger>
+          <TabsTrigger value="achievements">Achievements</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="stats" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-blue-500" />
+                  Study Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <p><strong>Cards Studied:</strong> {gamification.totalCardsStudied || 0}</p>
+                  <p><strong>Quizzes Taken:</strong> {gamification.totalQuizzesTaken || 0}</p>
+                  <p><strong>Daily Goal:</strong> {gamification.dailyProgress || 0}/{gamification.dailyGoal || 10} cards</p>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <BrainCircuit className="h-5 w-5 text-purple-500" />
+                  Performance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <p><strong>Correct Answers:</strong> {gamification.totalCorrectAnswers || 0}</p>
+                  <p><strong>Incorrect Answers:</strong> {gamification.totalIncorrectAnswers || 0}</p>
+                  <p><strong>Accuracy:</strong> {gamification.averageAccuracy || 0}%</p>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-green-500" />
+                  Study Time
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <p><strong>Total Time:</strong> {formatStudyTime(gamification.studyTime || 0)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="achievements" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Achievements</CardTitle>
+              <CardDescription>
+                You've unlocked {gamification.achievements?.length || 0} achievements
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {Object.keys(achievementCategories).length === 0 ? (
+                <div className="text-center py-8">
+                  <GraduationCap className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+                  <p className="mt-4 text-lg text-muted-foreground">
+                    No achievements unlocked yet. Keep studying!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(achievementCategories).map(([category, achievements]) => (
+                    <div key={category} className="space-y-2">
+                      <h3 className="text-lg font-semibold capitalize">{category}</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {achievements.map((achievement) => (
+                          <Badge 
+                            key={achievement.id} 
+                            variant="secondary"
+                            className="px-3 py-1 text-sm"
+                          >
+                            <span className="mr-1">{achievement.icon}</span>
+                            {achievement.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 } 
