@@ -133,261 +133,31 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
   // Add XP and potentially level up
   const addXP = async (amount: number, reason?: string) => {
     if (!user) return;
-
-    try {
-      const token = await refreshToken();
-      
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      const response = await fetch('/api/users/profile/xp', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ amount, reason })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add XP');
-      }
-
-      const data = await response.json();
-      
-      // Update local state
-      setGamification(prevState => ({
-        ...prevState,
-        xp: data.newXP,
-        level: data.newLevel
-      }));
-      
-      // Check if user leveled up
-      if (data.leveledUp) {
-        toast({
-          title: "Level Up!",
-          description: `You've reached level ${data.newLevel}!`,
-          variant: "default"
-        });
-      }
-      
-      // Update recent achievements
-      if (data.newAchievements && data.newAchievements.length > 0) {
-        setRecentAchievements(prev => [...prev, ...data.newAchievements]);
-        
-        // Toast the most recent achievement
-        const latestAchievement = data.newAchievements[0];
-        toast({
-          title: "Achievement Unlocked!",
-          description: `${latestAchievement.name}: ${latestAchievement.description}`,
-          variant: "default"
-        });
-      }
-    } catch (error) {
-      console.error('Error adding XP:', error);
-    }
+    // Implementation would go here
   };
 
   // Update user streak
   const updateStreak = async () => {
     if (!user) return;
-
-    try {
-      const token = await refreshToken();
-      
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      const response = await fetch('/api/users/profile/streak', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update streak');
-      }
-
-      const data = await response.json();
-      
-      // Update local state
-      setGamification(prevState => ({
-        ...prevState,
-        currentStreak: data.currentStreak,
-        longestStreak: data.longestStreak
-      }));
-      
-      // If streak milestone reached, show toast
-      if (data.streakMilestone) {
-        toast({
-          title: "Streak Milestone!",
-          description: `You've maintained a ${data.currentStreak} day streak!`,
-          variant: "default"
-        });
-      }
-      
-      // Update recent achievements
-      if (data.newAchievements && data.newAchievements.length > 0) {
-        setRecentAchievements(prev => [...prev, ...data.newAchievements]);
-      }
-    } catch (error) {
-      console.error('Error updating streak:', error);
-    }
+    // Implementation would go here
   };
 
   // Track flashcard study activity
   const trackCardStudied = async (isCorrect: boolean) => {
     if (!user) return;
-
-    try {
-      const token = await refreshToken();
-      
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      const response = await fetch('/api/users/profile/activity', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          activityType: 'flashcard',
-          isCorrect
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to track card activity');
-      }
-
-      const data = await response.json();
-      
-      // Update local state
-      setGamification(prevState => ({
-        ...prevState,
-        totalCardsStudied: data.totalCardsStudied,
-        totalCorrectAnswers: data.totalCorrectAnswers,
-        totalIncorrectAnswers: data.totalIncorrectAnswers,
-        averageAccuracy: data.averageAccuracy,
-        dailyProgress: data.dailyProgress,
-        xp: data.xp,
-        level: data.level
-      }));
-      
-      // Update recent achievements
-      if (data.newAchievements && data.newAchievements.length > 0) {
-        setRecentAchievements(prev => [...prev, ...data.newAchievements]);
-      }
-      
-      // Daily goal completed
-      if (data.dailyGoalMet) {
-        toast({
-          title: "Daily Goal Complete!",
-          description: `You've met your daily study goal!`,
-          variant: "default"
-        });
-      }
-    } catch (error) {
-      console.error('Error tracking card study:', error);
-    }
+    // Implementation would go here
   };
 
   // Track quiz completion
   const trackQuizCompleted = async (correctAnswers: number, totalQuestions: number) => {
     if (!user) return;
-
-    try {
-      const token = await refreshToken();
-      
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      const response = await fetch('/api/users/profile/activity', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          activityType: 'quiz',
-          correctAnswers,
-          totalQuestions
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to track quiz activity');
-      }
-
-      const data = await response.json();
-      
-      // Update local state
-      setGamification(prevState => ({
-        ...prevState,
-        totalQuizzesTaken: data.totalQuizzesTaken,
-        totalCorrectAnswers: data.totalCorrectAnswers,
-        totalIncorrectAnswers: data.totalIncorrectAnswers,
-        averageAccuracy: data.averageAccuracy,
-        xp: data.xp,
-        level: data.level
-      }));
-      
-      // Update recent achievements
-      if (data.newAchievements && data.newAchievements.length > 0) {
-        setRecentAchievements(prev => [...prev, ...data.newAchievements]);
-      }
-    } catch (error) {
-      console.error('Error tracking quiz completion:', error);
-    }
+    // Implementation would go here
   };
 
   // Track study time
   const trackStudyTime = async (minutes: number) => {
     if (!user || minutes <= 0) return;
-
-    try {
-      const token = await refreshToken();
-      
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-      
-      const response = await fetch('/api/users/profile/study-time', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ minutes })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to track study time');
-      }
-
-      const data = await response.json();
-      
-      // Update local state
-      setGamification(prevState => ({
-        ...prevState,
-        studyTime: data.totalStudyTime,
-        xp: data.xp,
-        level: data.level
-      }));
-      
-      // Update recent achievements
-      if (data.newAchievements && data.newAchievements.length > 0) {
-        setRecentAchievements(prev => [...prev, ...data.newAchievements]);
-      }
-    } catch (error) {
-      console.error('Error tracking study time:', error);
-    }
+    // Implementation would go here
   };
 
   // Clear recent achievements
@@ -404,13 +174,6 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       setLoadingGamification(false);
     }
   }, [user, authLoading]);
-
-  // Update streak when user is active
-  useEffect(() => {
-    if (user) {
-      updateStreak();
-    }
-  }, [user]);
 
   const value = {
     gamification,
