@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-// import { useGamification } from '@/contexts/GamificationContext';
+import { useGamification } from '@/contexts/GamificationContext';
 import { MainNav } from '@/components/MainNav';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +20,7 @@ import { Award, Trophy, Calendar, Clock, Brain, Book, ChevronRight, Upload, Edit
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
-  // const { gamification, loadingGamification, refreshGamificationData } = useGamification();
+  const { gamification, loadingGamification } = useGamification();
   const router = useRouter();
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -29,39 +29,6 @@ export default function ProfilePage() {
     experience: '',
     bio: ''
   });
-
-  // Mock gamification data for now
-  const gamification = {
-    xp: 250,
-    level: 2,
-    currentStreak: 5,
-    longestStreak: 10,
-    totalCardsStudied: 120,
-    totalQuizzesTaken: 15,
-    totalCorrectAnswers: 95,
-    totalIncorrectAnswers: 25,
-    averageAccuracy: 85,
-    studyTime: 180,
-    achievements: [{
-      id: '1',
-      name: 'First Steps',
-      description: 'Completed your first study session',
-      icon: '🚀',
-      unlockedAt: new Date(),
-      category: 'general'
-    }],
-    badges: [{
-      id: '1',
-      name: 'Beginner',
-      description: 'Started your learning journey',
-      icon: '🥉',
-      tier: 'bronze'
-    }],
-    specialtyProgress: [],
-    dailyGoal: 10,
-    dailyProgress: 5
-  };
-  const loadingGamification = false;
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -167,7 +134,7 @@ export default function ProfilePage() {
                   <Avatar className="h-24 w-24 border-4 border-primary">
                     <AvatarImage src={profileImage || undefined} />
                     <AvatarFallback className="text-2xl">{getUserInitials()}</AvatarFallback>
-                  </Avatar>
+          </Avatar>
                   <div className="text-center">
                     <h3 className="text-xl font-semibold">{user?.name || user?.email?.split('@')[0]}</h3>
                     <p className="text-muted-foreground">{formData.specialty || 'Medical Student'}</p>
@@ -210,9 +177,9 @@ export default function ProfilePage() {
                         <Trophy className="h-4 w-4 mr-1 text-yellow-500" />
                         Level {gamification.level}
                       </Badge>
-                    </div>
-                  </div>
-                  
+          </div>
+        </div>
+
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>XP: {gamification.xp}</span>
@@ -372,7 +339,7 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           {/* Stats Tab */}
           <TabsContent value="stats" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

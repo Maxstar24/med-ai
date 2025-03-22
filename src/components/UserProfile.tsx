@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-// import { useGamification } from '@/contexts/GamificationContext';
+import { useGamification } from '@/contexts/GamificationContext';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import { User, LogOut, Settings } from 'lucide-react';
 
 export function UserProfile() {
   const { user, logout } = useAuth();
-  // const { gamification } = useGamification();
+  const { gamification } = useGamification();
 
   if (!user) {
     return (
@@ -43,7 +43,7 @@ export function UserProfile() {
           </Avatar>
           <div className="hidden md:block text-left">
             <div className="text-sm font-medium">{user.email?.split('@')[0]}</div>
-            <div className="text-xs text-muted-foreground">Level 1</div>
+            <div className="text-xs text-muted-foreground">Level {gamification?.level || 1}</div>
           </div>
         </button>
       </DropdownMenuTrigger>
