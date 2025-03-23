@@ -1,3 +1,8 @@
+import { Types } from 'mongoose';
+import { getServerSession } from 'next-auth/next';
+import { StudyGroupModel } from '@/models/StudyGroupModel';
+import { authOptions } from '@/lib/auth';
+import { connectToDatabase } from '@/lib/db';
 import { 
   StudyGroup,
   StudyGroupMember,
@@ -9,7 +14,10 @@ import {
   JoinStudyGroupInput,
   AddStudyGroupEventInput,
   AddStudyGroupResourceInput,
-  SendStudyGroupMessageInput
+  SendStudyGroupMessageInput,
+  AddGroupMemberInput,
+  CreateGroupEventInput,
+  SendGroupMessageInput
 } from '@/models/StudyGroup';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -298,4 +306,875 @@ function generateJoinCode(): string {
   }
   
   return code;
+}
+
+export class StudyGroupService {
+  /**
+   * Create a new study group
+   */
+  static async createGroup(data: CreateStudyGroupInput): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      const { name, description, subject, topics, isPrivate } = data;
+      
+      // Create the study group with the current user as admin
+      const group = new StudyGroupModel({
+        name,
+        description,
+        subject,
+        topics: topics || [],
+        isPrivate: isPrivate || false,
+        members: [{
+          userId: new Types.ObjectId(userId),
+          role: 'admin',
+          joinedAt: new Date(),
+          displayName: session.user.name || 'Group Admin'
+        }],
+        messages: [],
+        events: [],
+        resources: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      // If the group is private, generate a join code
+      if (isPrivate) {
+        await group.generateJoinCode();
+      }
+      
+      await group.save();
+      return group;
+    } catch (error) {
+      console.error('Error creating study group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get all study groups (with optional filter for public groups)
+   */
+  static async getAllGroups(publicOnly: boolean = false): Promise<StudyGroup[]> {
+    try {
+      await connectToDatabase();
+      
+      const query = publicOnly ? { isPrivate: false } : {};
+      const groups = await StudyGroupModel.find(query).sort({ createdAt: -1 });
+      
+      return groups;
+    } catch (error) {
+      console.error('Error fetching study groups:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get groups by subject
+   */
+  static async getGroupsBySubject(subject: string): Promise<StudyGroup[]> {
+    try {
+      await connectToDatabase();
+      
+      const groups = await StudyGroupModel.find({ 
+        subject,
+        isPrivate: false 
+      }).sort({ createdAt: -1 });
+      
+      return groups;
+    } catch (error) {
+      console.error('Error fetching groups by subject:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get a specific study group by ID
+   */
+  static async getGroupById(groupId: string): Promise<StudyGroup> {
+    try {
+      await connectToDatabase();
+      
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      return group;
+    } catch (error) {
+      console.error('Error fetching study group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get study groups that the current user is a member of
+   */
+  static async getCurrentUserGroups(): Promise<StudyGroup[]> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      const groups = await StudyGroupModel.find({ 
+        'members.userId': userId 
+      }).sort({ createdAt: -1 });
+      
+      return groups;
+    } catch (error) {
+      console.error('Error fetching user groups:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Update a study group
+   */
+  static async updateGroup(groupId: string, data: UpdateStudyGroupInput): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is an admin
+      const isAdmin = group.members.some(member => 
+        member.userId.toString() === userId && member.role === 'admin'
+      );
+      
+      if (!isAdmin) {
+        throw new Error('Only group admins can update the group');
+      }
+      
+      // Update the group fields
+      if (data.name) group.name = data.name;
+      if (data.description) group.description = data.description;
+      if (data.subject) group.subject = data.subject;
+      if (data.topics) group.topics = data.topics;
+      if (data.isPrivate !== undefined) {
+        group.isPrivate = data.isPrivate;
+        if (data.isPrivate && !group.joinCode) {
+          await group.generateJoinCode();
+        }
+      }
+      
+      group.updatedAt = new Date();
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error updating study group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Delete a study group
+   */
+  static async deleteGroup(groupId: string): Promise<{ success: boolean }> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is an admin
+      const isAdmin = group.members.some(member => 
+        member.userId.toString() === userId && member.role === 'admin'
+      );
+      
+      if (!isAdmin) {
+        throw new Error('Only group admins can delete the group');
+      }
+      
+      // Delete the group
+      await StudyGroupModel.findByIdAndDelete(groupId);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting study group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Join a group with a join code (for private groups)
+   */
+  static async joinGroupWithCode(joinCode: string): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group with the join code
+      const group = await StudyGroupModel.findOne({ joinCode });
+      
+      if (!group) {
+        throw new Error('Invalid join code or group not found');
+      }
+      
+      // Check if user is already a member
+      const isMember = group.members.some(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (isMember) {
+        return group; // User is already a member
+      }
+      
+      // Add user as a member
+      const newMember = {
+        userId: new Types.ObjectId(userId),
+        role: 'member',
+        joinedAt: new Date(),
+        displayName: session.user.name || 'Group Member'
+      };
+      
+      group.members.push(newMember);
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error joining group with code:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Join a public group
+   */
+  static async joinPublicGroup(groupId: string): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if the group is public
+      if (group.isPrivate) {
+        throw new Error('Cannot directly join a private group. Use a join code instead.');
+      }
+      
+      // Check if user is already a member
+      const isMember = group.members.some(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (isMember) {
+        return group; // User is already a member
+      }
+      
+      // Add user as a member
+      const newMember = {
+        userId: new Types.ObjectId(userId),
+        role: 'member',
+        joinedAt: new Date(),
+        displayName: session.user.name || 'Group Member'
+      };
+      
+      group.members.push(newMember);
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error joining public group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Leave a group
+   */
+  static async leaveGroup(groupId: string): Promise<{ success: boolean }> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is a member
+      const memberIndex = group.members.findIndex(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (memberIndex === -1) {
+        throw new Error('You are not a member of this group');
+      }
+      
+      // Check if user is the only admin
+      const isAdmin = group.members[memberIndex].role === 'admin';
+      const adminCount = group.members.filter(member => member.role === 'admin').length;
+      
+      if (isAdmin && adminCount === 1 && group.members.length > 1) {
+        throw new Error('You are the only admin. Promote another member to admin before leaving.');
+      }
+      
+      // Remove the member
+      group.members.splice(memberIndex, 1);
+      
+      // If no members left, delete the group
+      if (group.members.length === 0) {
+        await StudyGroupModel.findByIdAndDelete(groupId);
+      } else {
+        await group.save();
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error leaving group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Add a member to the group (admin only)
+   */
+  static async addMember(groupId: string, memberData: AddGroupMemberInput): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is an admin
+      const isAdmin = group.members.some(member => 
+        member.userId.toString() === userId && member.role === 'admin'
+      );
+      
+      if (!isAdmin) {
+        throw new Error('Only group admins can add members');
+      }
+      
+      // Check if member already exists
+      const memberExists = group.members.some(member => 
+        member.userId.toString() === memberData.userId
+      );
+      
+      if (memberExists) {
+        throw new Error('User is already a member of this group');
+      }
+      
+      // Add the new member
+      const newMember = {
+        userId: new Types.ObjectId(memberData.userId),
+        role: memberData.role || 'member',
+        joinedAt: new Date(),
+        displayName: memberData.displayName || 'Group Member'
+      };
+      
+      group.members.push(newMember);
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error adding member to group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Update a member's role (admin only)
+   */
+  static async updateMemberRole(groupId: string, memberId: string, role: 'admin' | 'member'): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is an admin
+      const isAdmin = group.members.some(member => 
+        member.userId.toString() === userId && member.role === 'admin'
+      );
+      
+      if (!isAdmin) {
+        throw new Error('Only group admins can update member roles');
+      }
+      
+      // Find the member to update
+      const memberIndex = group.members.findIndex(member => 
+        member.userId.toString() === memberId
+      );
+      
+      if (memberIndex === -1) {
+        throw new Error('Member not found in this group');
+      }
+      
+      // Update the member's role
+      group.members[memberIndex].role = role;
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error updating member role:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Remove a member from the group (admin only)
+   */
+  static async removeMember(groupId: string, memberId: string): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is an admin
+      const isAdmin = group.members.some(member => 
+        member.userId.toString() === userId && member.role === 'admin'
+      );
+      
+      if (!isAdmin) {
+        throw new Error('Only group admins can remove members');
+      }
+      
+      // Find the member to remove
+      const memberIndex = group.members.findIndex(member => 
+        member.userId.toString() === memberId
+      );
+      
+      if (memberIndex === -1) {
+        throw new Error('Member not found in this group');
+      }
+      
+      // Cannot remove the last admin
+      if (group.members[memberIndex].role === 'admin') {
+        const adminCount = group.members.filter(member => member.role === 'admin').length;
+        if (adminCount === 1) {
+          throw new Error('Cannot remove the last admin. Promote another member to admin first.');
+        }
+      }
+      
+      // Remove the member
+      group.members.splice(memberIndex, 1);
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error removing member from group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Create a group event
+   */
+  static async createEvent(groupId: string, eventData: CreateGroupEventInput): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is a member
+      const isMember = group.members.some(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (!isMember) {
+        throw new Error('Only group members can create events');
+      }
+      
+      // Create the event
+      const newEvent = {
+        _id: new Types.ObjectId(),
+        createdBy: new Types.ObjectId(userId),
+        title: eventData.title,
+        description: eventData.description,
+        startTime: new Date(eventData.startTime),
+        endTime: new Date(eventData.endTime),
+        location: eventData.location,
+        isVirtual: eventData.isVirtual || false,
+        meetingLink: eventData.meetingLink,
+        attendees: [{
+          userId: new Types.ObjectId(userId),
+          status: 'going'
+        }],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // Add the event to the group
+      group.events.push(newEvent);
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error creating group event:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Update event attendance status
+   */
+  static async updateEventAttendance(groupId: string, eventId: string, status: 'going' | 'not-going' | 'undecided'): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is a member
+      const isMember = group.members.some(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (!isMember) {
+        throw new Error('Only group members can update attendance');
+      }
+      
+      // Find the event
+      const eventIndex = group.events.findIndex(event => 
+        event._id.toString() === eventId
+      );
+      
+      if (eventIndex === -1) {
+        throw new Error('Event not found');
+      }
+      
+      // Find if user is already in attendees
+      const attendeeIndex = group.events[eventIndex].attendees.findIndex(attendee => 
+        attendee.userId.toString() === userId
+      );
+      
+      if (attendeeIndex !== -1) {
+        // Update existing attendance
+        group.events[eventIndex].attendees[attendeeIndex].status = status;
+      } else {
+        // Add new attendance
+        group.events[eventIndex].attendees.push({
+          userId: new Types.ObjectId(userId),
+          status
+        });
+      }
+      
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error updating event attendance:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Delete an event
+   */
+  static async deleteEvent(groupId: string, eventId: string): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Find the event
+      const eventIndex = group.events.findIndex(event => 
+        event._id.toString() === eventId
+      );
+      
+      if (eventIndex === -1) {
+        throw new Error('Event not found');
+      }
+      
+      // Check if user is the creator or an admin
+      const isCreator = group.events[eventIndex].createdBy.toString() === userId;
+      const isAdmin = group.members.some(member => 
+        member.userId.toString() === userId && member.role === 'admin'
+      );
+      
+      if (!isCreator && !isAdmin) {
+        throw new Error('Only the event creator or group admins can delete events');
+      }
+      
+      // Remove the event
+      group.events.splice(eventIndex, 1);
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Send a message to the group
+   */
+  static async sendMessage(groupId: string, messageData: SendGroupMessageInput): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is a member
+      const isMember = group.members.some(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (!isMember) {
+        throw new Error('Only group members can send messages');
+      }
+      
+      // Create the message
+      const newMessage = {
+        _id: new Types.ObjectId(),
+        userId: new Types.ObjectId(userId),
+        content: messageData.content,
+        attachments: messageData.attachments || [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // Add the message to the group
+      group.messages.push(newMessage);
+      
+      // Limit the number of messages (optional, to prevent document size issues)
+      if (group.messages.length > 200) {
+        group.messages = group.messages.slice(-200);
+      }
+      
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error sending message to group:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get the latest messages for a group
+   */
+  static async getMessages(groupId: string, limit: number = 50): Promise<StudyGroupMessage[]> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is a member
+      const isMember = group.members.some(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (!isMember) {
+        throw new Error('Only group members can view messages');
+      }
+      
+      // Get the most recent messages
+      const messages = group.messages
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, limit);
+      
+      return messages;
+    } catch (error) {
+      console.error('Error getting group messages:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Add a resource to the group
+   */
+  static async addResource(groupId: string, resource: any): Promise<StudyGroup> {
+    try {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) {
+        throw new Error('Not authenticated');
+      }
+      
+      await connectToDatabase();
+      
+      const userId = session.user.id;
+      
+      // Find the group
+      const group = await StudyGroupModel.findById(groupId);
+      
+      if (!group) {
+        throw new Error('Study group not found');
+      }
+      
+      // Check if user is a member
+      const isMember = group.members.some(member => 
+        member.userId.toString() === userId
+      );
+      
+      if (!isMember) {
+        throw new Error('Only group members can add resources');
+      }
+      
+      // Create the resource
+      const newResource = {
+        _id: new Types.ObjectId(),
+        addedBy: new Types.ObjectId(userId),
+        title: resource.title,
+        description: resource.description,
+        type: resource.type,
+        url: resource.url,
+        tags: resource.tags || [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // Add the resource to the group
+      group.resources.push(newResource);
+      await group.save();
+      
+      return group;
+    } catch (error) {
+      console.error('Error adding resource to group:', error);
+      throw error;
+    }
+  }
 } 
